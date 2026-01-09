@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+package-lock.json
+
+# Testing
+/coverage
+
+# Next.js
+/.next/
+/out/
+.turbo/
+
+# Production
+/build
+/dist
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local env files (keep .env.example for reference)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+
+# OS & System
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Database
+prisma/dev.db
+prisma/dev.db-journal
+*.sqlite
+*.sqlite3
+
+# Uploads & Files
+/public/uploads/
+/public/tmp/
+
+# Misc & Local Setup Guides
+*.pem
+*.key
+*.crt
+GITHUB_READY.md
+GITHUB_SETUP.md

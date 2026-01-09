@@ -1,0 +1,60 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String        @id @default(cuid())
+  username      String        @unique
+  password      String
+  createdAt     DateTime      @default(now())
+  applications  Application[]
+}
+
+model Application {
+  id            String    @id @default(cuid())
+  company       String
+  position      String
+  status        String    @default("applied") // applied, interview, rejected, accepted
+  applicationDate DateTime @default(now())
+  notes         String?
+  contactEmail  String?
+  contactPhone  String?
+  salary        String?
+  location      String?
+  url           String?
+  
+  // Nouveaux champs
+  applicationType String    @default("response") // response ou spontaneous
+  jobType       String    @default("job") // job ou internship
+  contractType  String?   // interim, cdd, cdi (only for job type)
+  coverLetterPath String?  // chemin vers la lettre de motivation
+  companyLogoPath String?  // chemin vers le logo de l'entreprise
+  
+  reminders     Reminder[]
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Reminder {
+  id              String      @id @default(cuid())
+  title           String
+  date            DateTime
+  completed       Boolean     @default(false)
+  
+  applicationId   String
+  application     Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime    @default(now())
+}
+
