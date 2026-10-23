@@ -1,0 +1,20 @@
+# Donnees locales : ne jamais embarquer dans l'image.
+data/
+sso-data/
+.env
+
+# Notes de securite internes : jamais dans l'image.
+SECURITE-INTERNE.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Divers
+.git/
+.gitignore
+tests/
+docs/
+*.md

@@ -1,0 +1,23 @@
+{#
+  Page de connexion, mode auth locale. En mode OIDC, la connexion se fait
+  par redirection vers le fournisseur et cette page n'est pas utilisee.
+#}
+{% extends "base.html" %}
+
+{% block titre %}Connexion{% endblock %}
+
+{% block contenu %}
+<div class="login-box">
+  <h1>Connexion</h1>
+  {% if erreur %}
+  <p style="color:var(--c-refus)">{{ erreur }}</p>
+  {% endif %}
+  <form method="post" action="/login">
+    <label>Email</label>
+    <input type="email" name="email" required autofocus>
+    <label>Mot de passe</label>
+    <input type="password" name="password" required>
+    <button type="submit" class="principal" style="margin-top:0.8rem;width:100%">Se connecter</button>
+  </form>
+</div>
+{% endblock %}

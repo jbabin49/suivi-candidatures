@@ -1,0 +1,272 @@
+{#
+  Page de detail d'une candidature. De haut en bas : frise chronologique,
+  puis sections repliables (informations, relances, contacts, entretiens,
+  documents). Les listes d'elements sont affichees en cartes disposees en
+  grille responsive. La frise est dessinee en SVG par timeline.js.
+#}
+{% extends "base.html" %}
+
+{% block titre %}{{ candidature.offre }} - {{ candidature.entreprise }}{% endblock %}
+
+{% block contenu %}
+<h1>{{ candidature.offre }} - {{ candidature.entreprise }}</h1>
+
+{# Frise chronologique.
+
+   Les evenements sont transmis au JavaScript par un attribut data-*, et
+   non par un bloc <script type="application/json"> : l'attribut est
+   echappe par Jinja (autoescape), aucun | safe n'est necessaire, et
+   Firefox ne signale plus de violation script-src sur un bloc de
+   donnees. L'attribut est en apostrophes simples car le filtre tojson
+   echappe l'apostrophe mais pas le guillemet double. #}
+<div class="timeline">
+  <div id="frise" data-evenements='{{ evenements_frise | tojson }}'></div>
+</div>
+
+{# Informations et statut (section ouverte par defaut) #}
+<details class="section" open>
+  <summary>Informations</summary>
+  <div class="section-corps">
+    <form method="post" action="/candidatures/{{ candidature.id }}">
+      <div class="form-grille">
+        <div class="pleine-largeur">
+          <label>Offre</label>
+          <input type="text" name="offre" value="{{ candidature.offre }}" required>
+        </div>
+        <div>
+          <label>Entreprise</label>
+          <input type="text" name="entreprise" value="{{ candidature.entreprise }}" required>
+        </div>
+        <div>
+          <label>Ville</label>
+          <input type="text" name="ville" value="{{ candidature.ville or '' }}">
+        </div>
+        <div>
+          <label>Date de candidature</label>
+          <input type="date" name="date_candidature" value="{{ candidature.date_candidature.isoformat() }}" required>
+        </div>
+        <div>
+          <label>Statut</label>
+          <select name="statut">
+            {% for s in statuts %}
+            <option value="{{ s.value }}" {% if s == candidature.statut %}selected{% endif %}>{{ s.value }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>Source</label>
+          <input type="text" name="source" value="{{ candidature.source or '' }}">
+        </div>
+        <div>
+          <label>Date de prochaine action</label>
+          <input type="date" name="date_prochaine_action"
+            value="{{ candidature.date_prochaine_action.isoformat() if candidature.date_prochaine_action else '' }}">
+        </div>
+        <div>
+          <label>Salaire</label>
+          <input type="text" name="salaire" value="{{ candidature.salaire or '' }}">
+        </div>
+        <div>
+          <label>Type de contrat</label>
+          <input type="text" name="type_contrat" value="{{ candidature.type_contrat or '' }}">
+        </div>
+        <div>
+          <label>Télétravail</label>
+          <input type="text" name="teletravail" value="{{ candidature.teletravail or '' }}">
+        </div>
+        <div class="pleine-largeur">
+          <label>Lien de l'annonce</label>
+          <input type="url" name="lien_annonce" value="{{ candidature.lien_annonce or '' }}">
+        </div>
+        <div class="pleine-largeur">
+          <label>Texte de l'annonce</label>
+          <textarea name="texte_annonce">{{ candidature.texte_annonce or '' }}</textarea>
+        </div>
+      </div>
+      <button type="submit" class="principal" style="margin-top:0.8rem">Enregistrer</button>
+    </form>
+  </div>
+</details>
+
+{# Relances #}
+<details class="section" open>
+  <summary>Relances <span class="compte">{{ candidature.relances | length }}</span></summary>
+  <div class="section-corps">
+    {% if candidature.relances %}
+    <div class="cartes">
+      {% for r in candidature.relances %}
+      <div class="carte">
+        <div class="meta">{{ r.date.strftime('%d/%m/%Y') }}{% if r.moyen %} - {{ r.moyen }}{% endif %}</div>
+        {% if r.texte %}<p>{{ r.texte }}</p>{% endif %}
+        <form method="post" action="/candidatures/{{ candidature.id }}/relances/{{ r.id }}/supprimer">
+          <button type="submit" class="danger">Supprimer</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="meta">Aucune relance enregistrée.</p>
+    {% endif %}
+
+    <details class="form-ajout">
+      <summary>+ Ajouter une relance</summary>
+      <form method="post" action="/candidatures/{{ candidature.id }}/relances">
+        <label>Date</label>
+        <input type="date" name="date" required>
+        <label>Moyen</label>
+        <input type="text" name="moyen" placeholder="Mail, LinkedIn, téléphone...">
+        <label>Texte du message envoyé</label>
+        <textarea name="texte"></textarea>
+        <button type="submit" class="principal" style="margin-top:0.5rem">Ajouter la relance</button>
+      </form>
+    </details>
+  </div>
+</details>
+
+{# Contacts #}
+<details class="section" open>
+  <summary>Contacts <span class="compte">{{ candidature.contacts | length }}</span></summary>
+  <div class="section-corps">
+    {% if candidature.contacts %}
+    <div class="cartes">
+      {% for ct in candidature.contacts %}
+      <div class="carte">
+        <div class="titre-carte">{{ ct.nom }}</div>
+        {% if ct.poste %}<div class="meta">{{ ct.poste }}</div>{% endif %}
+        <div class="meta">
+          {% if ct.email %}<a href="mailto:{{ ct.email }}">{{ ct.email }}</a>{% endif %}
+          {# Second garde-fou, pour les contacts enregistres avant la
+             validation serveur : un lien dont le schema n'est pas http(s)
+             n'est tout simplement pas rendu en href. #}
+          {% set lien_sur = ct.lien if ct.lien and (ct.lien.startswith('http://') or ct.lien.startswith('https://')) else None %}
+          {% if lien_sur %}{% if ct.email %} · {% endif %}<a href="{{ lien_sur }}" target="_blank" rel="noopener">Profil / page</a>{% endif %}
+        </div>
+        <form method="post" action="/candidatures/{{ candidature.id }}/contacts/{{ ct.id }}/supprimer">
+          <button type="submit" class="danger">Supprimer</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="meta">Aucun contact enregistré.</p>
+    {% endif %}
+
+    <details class="form-ajout">
+      <summary>+ Ajouter un contact</summary>
+      <form method="post" action="/candidatures/{{ candidature.id }}/contacts">
+        <label>Nom</label>
+        <input type="text" name="nom" required>
+        <label>Poste</label>
+        <input type="text" name="poste">
+        <label>Email</label>
+        <input type="email" name="email">
+        <label>Lien (LinkedIn ou page web)</label>
+        {# type="text" et non "url" : le navigateur refuserait un domaine
+           nu avant l'envoi, alors que le serveur sait le completer. #}
+        <input type="text" name="lien" placeholder="linkedin.com/in/...">
+        <p class="meta">ex. linkedin.com/in/... (https:// ajouté automatiquement)</p>
+        <button type="submit" class="principal" style="margin-top:0.5rem">Ajouter le contact</button>
+      </form>
+    </details>
+  </div>
+</details>
+
+{# Entretiens #}
+<details class="section" open>
+  <summary>Entretiens <span class="compte">{{ candidature.entretiens | length }}</span></summary>
+  <div class="section-corps">
+    {% if candidature.entretiens %}
+    <div class="cartes">
+      {% for e in candidature.entretiens %}
+      <div class="carte">
+        <div class="titre-carte">{{ e.date_heure.strftime('%d/%m/%Y %H:%M') }}</div>
+        <div class="meta">{{ e.type.value }}</div>
+        {% if e.lieu_ou_lien %}<div class="meta">{{ e.lieu_ou_lien }}</div>{% endif %}
+        {% if e.personnes %}<div class="meta">Avec : {{ e.personnes }}</div>{% endif %}
+        {% if e.notes %}<p>{{ e.notes }}</p>{% endif %}
+        <form method="post" action="/candidatures/{{ candidature.id }}/entretiens/{{ e.id }}/supprimer">
+          <button type="submit" class="danger">Supprimer</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="meta">Aucun entretien enregistré.</p>
+    {% endif %}
+
+    <details class="form-ajout">
+      <summary>+ Ajouter un entretien</summary>
+      <form method="post" action="/candidatures/{{ candidature.id }}/entretiens">
+        <label>Date et heure</label>
+        <input type="datetime-local" name="date_heure" required>
+        <label>Type</label>
+        <select name="type">
+          <option value="telephone">téléphone</option>
+          <option value="visio">visio</option>
+          <option value="presentiel">présentiel</option>
+        </select>
+        <label>Lieu ou lien</label>
+        <input type="text" name="lieu_ou_lien">
+        <label>Personnes présentes</label>
+        <input type="text" name="personnes">
+        <label>Notes</label>
+        <textarea name="notes"></textarea>
+        <button type="submit" class="principal" style="margin-top:0.5rem">Ajouter l'entretien</button>
+      </form>
+    </details>
+  </div>
+</details>
+
+{# Documents #}
+<details class="section" open>
+  <summary>Documents <span class="compte">{{ candidature.documents | length }}</span></summary>
+  <div class="section-corps">
+    {% if candidature.documents %}
+    <div class="cartes">
+      {% for d in candidature.documents %}
+      <div class="carte">
+        <div class="titre-carte">
+          <a href="/documents/{{ d.id }}" target="_blank" rel="noopener">{{ d.nom_fichier }}</a>
+        </div>
+        <div class="meta">{{ d.type.value }}</div>
+        <form method="post" action="/documents/{{ d.id }}/supprimer">
+          <button type="submit" class="danger">Supprimer</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="meta">Aucun document enregistré.</p>
+    {% endif %}
+
+    <details class="form-ajout">
+      <summary>+ Téléverser un document</summary>
+      <form method="post" action="/candidatures/{{ candidature.id }}/documents" enctype="multipart/form-data">
+        <label>Type de document</label>
+        <select name="type">
+          <option value="cv">CV</option>
+          <option value="lm">Lettre de motivation</option>
+          <option value="image_annonce">Image d'annonce</option>
+        </select>
+        <label>Fichier</label>
+        <input type="file" name="fichier" required>
+        <button type="submit" class="principal" style="margin-top:0.5rem">Téléverser</button>
+      </form>
+    </details>
+
+    <form method="post" action="/candidatures/{{ candidature.id }}/documents/reutiliser-cv" style="margin-top:0.6rem">
+      <button type="submit">Utiliser mon CV principal</button>
+    </form>
+  </div>
+</details>
+
+{# data-confirmer plutot que onsubmit : voir static/js/interactions.js #}
+<form method="post" action="/candidatures/{{ candidature.id }}/supprimer"
+  data-confirmer="Supprimer définitivement cette candidature ?">
+  <button type="submit" class="danger" style="margin-top:1.5rem">Supprimer la candidature</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/timeline.js"></script>
+{% endblock %}

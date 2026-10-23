@@ -1,0 +1,107 @@
+{#
+  Page d'accueil : compteurs de synthese, rappel des prochaines actions,
+  tableau des candidatures et formulaire d'ajout d'une ligne.
+#}
+{% extends "base.html" %}
+
+{% block contenu %}
+<h1>Mes candidatures</h1>
+
+{# Compteurs de synthese #}
+<div class="compteurs">
+  <div class="compteur">
+    <div class="valeur">{{ compteurs.total }}</div>
+    <div class="libelle">Total</div>
+  </div>
+  <div class="compteur">
+    <div class="valeur">{{ compteurs.actives }}</div>
+    <div class="libelle">Actives</div>
+  </div>
+  <div class="compteur">
+    <div class="valeur">{{ compteurs.taux_reponse }} %</div>
+    <div class="libelle">Taux de réponse</div>
+  </div>
+  <div class="compteur">
+    <div class="valeur">{{ compteurs.taux_entretien }} %</div>
+    <div class="libelle">Taux d'entretien</div>
+  </div>
+</div>
+
+{# Prochaines actions : relances dues #}
+{% if actions %}
+<h2>Prochaines actions</h2>
+<div class="actions-liste">
+  <ul>
+    {% for action in actions %}
+    <li>
+      <a href="/candidatures/{{ action.candidature.id }}">
+        {{ action.candidature.offre }} - {{ action.candidature.entreprise }}
+      </a>
+      : relance J+{{ action.jour_jalon }}
+      {% if action.en_retard %}
+        <strong style="color:var(--c-refus)">en retard (du {{ action.echeance.strftime('%d/%m/%Y') }})</strong>
+      {% else %}
+        à faire aujourd'hui
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{# Tableau des candidatures #}
+<h2>Toutes les candidatures</h2>
+<div class="tableau-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Offre</th><th>Entreprise</th><th>Ville</th>
+        <th>Date</th><th>Statut</th><th>Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in candidatures %}
+      {# data-href plutot que onclick : voir static/js/interactions.js #}
+      <tr data-href="/candidatures/{{ c.id }}">
+        <td>{{ c.offre }}</td>
+        <td>{{ c.entreprise }}</td>
+        <td>{{ c.ville or '' }}</td>
+        <td>{{ c.date_candidature.strftime('%d/%m/%Y') }}</td>
+        <td><span class="badge badge-{{ c.statut.value }}">{{ c.statut.value }}</span></td>
+        <td>{{ c.source or '' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="color:var(--texte-doux)">Aucune candidature pour le moment.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# Formulaire d'ajout d'une ligne #}
+<h2>Ajouter une candidature</h2>
+<form method="post" action="/candidatures">
+  <div class="form-grille">
+    <div>
+      <label>Offre</label>
+      <input type="text" name="offre" required>
+    </div>
+    <div>
+      <label>Entreprise</label>
+      <input type="text" name="entreprise" required>
+    </div>
+    <div>
+      <label>Ville</label>
+      <input type="text" name="ville">
+    </div>
+    <div>
+      <label>Date de candidature</label>
+      <input type="date" name="date_candidature" required>
+    </div>
+    <div>
+      <label>Source</label>
+      <input type="text" name="source" placeholder="Indeed, Hellowork...">
+    </div>
+  </div>
+  <button type="submit" class="principal" style="margin-top:0.8rem">Ajouter</button>
+</form>
+{% endblock %}

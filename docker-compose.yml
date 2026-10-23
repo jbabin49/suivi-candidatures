@@ -1,0 +1,26 @@
+# Deploiement par defaut : l'application seule, authentification locale.
+# Lancement :
+#     docker compose up -d
+# Puis acces sur http://localhost:8000
+#
+# Les donnees (base SQLite, fichiers televerses, cle de session) sont
+# persistees dans le dossier ./data. Sauvegarder = copier ce dossier.
+
+services:
+  app:
+    build: .
+    # Ou, pour utiliser une image publiee plutot que de construire :
+    # image: jbabin49/suivi-candidatures:latest          (Docker Hub)
+    # image: ghcr.io/jbabin49/suivi-candidatures:latest  (GHCR)
+    container_name: candidatures
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

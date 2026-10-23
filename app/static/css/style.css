@@ -1,0 +1,354 @@
+/*
+  Feuille de style de l'application.
+
+  Objectifs : lisibilite, hierarchie visuelle claire, mise en page
+  responsive (nombre de colonnes adapte a la largeur d'ecran) et support
+  du mode sombre (automatique selon le systeme, avec bascule manuelle
+  possible via l'attribut data-theme sur <html>).
+
+  Les couleurs sont definies en variables, redefinies en mode sombre.
+*/
+
+/* ---- Theme clair (par defaut) ---- */
+:root {
+  --fond: #f4f3ef;
+  --surface: #ffffff;
+  --surface-2: #faf9f6;
+  --bordure: #e3e0d8;
+  --bordure-forte: #c9c6bd;
+  --texte: #26251f;
+  --texte-doux: #6b6a63;
+
+  /* Couleurs de statut, communes au tableau, aux badges et a la frise. */
+  --c-neutre: #6b6a63;
+  --c-relance: #b26a0f;
+  --c-entretien: #1565a6;
+  --c-favorable: #3b7012;
+  --c-refus: #b02e2e;
+
+  --fond-retard: #fbe9e9;
+  --fond-du: #fbf0da;
+
+  --ombre: 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --rayon: 10px;
+}
+
+/* ---- Theme sombre ---- */
+/* Applique si le systeme est en sombre ET qu'aucun choix manuel "clair"
+   n'a ete fait, ou si l'utilisateur a force le sombre manuellement. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fond: #1a1a18;
+    --surface: #242420;
+    --surface-2: #2b2b26;
+    --bordure: #38372f;
+    --bordure-forte: #4d4c42;
+    --texte: #e8e6dd;
+    --texte-doux: #a8a69b;
+
+    --c-neutre: #a8a69b;
+    --c-relance: #e0a24a;
+    --c-entretien: #5aa6e0;
+    --c-favorable: #8fc65a;
+    --c-refus: #e07070;
+
+    --fond-retard: #3a2321;
+    --fond-du: #3a3020;
+
+    --ombre: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}
+:root[data-theme="dark"] {
+  --fond: #1a1a18;
+  --surface: #242420;
+  --surface-2: #2b2b26;
+  --bordure: #38372f;
+  --bordure-forte: #4d4c42;
+  --texte: #e8e6dd;
+  --texte-doux: #a8a69b;
+
+  --c-neutre: #a8a69b;
+  --c-relance: #e0a24a;
+  --c-entretien: #5aa6e0;
+  --c-favorable: #8fc65a;
+  --c-refus: #e07070;
+
+  --fond-retard: #3a2321;
+  --fond-du: #3a3020;
+
+  --ombre: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--fond);
+  color: var(--texte);
+  line-height: 1.6;
+}
+
+a { color: var(--c-entretien); }
+
+/* ---- En-tete ---- */
+header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--bordure);
+  padding: 0.8rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+header .marque { font-weight: 600; font-size: 1.05rem; }
+header nav {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+header nav a { text-decoration: none; }
+
+main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+@media (max-width: 600px) { main { padding: 1rem; } }
+
+/* ---- Titres : hierarchie marquee ---- */
+h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 1rem; }
+h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 2rem 0 0.8rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--bordure);
+}
+
+/* ---- Bouton de bascule de theme ---- */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  color: var(--texte);
+  font: inherit;
+  font-size: 0.85rem;
+}
+.theme-toggle:hover { border-color: var(--bordure-forte); }
+
+/* ---- Compteurs de l'accueil ---- */
+.compteurs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+}
+.compteur {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 1rem 1.2rem;
+  box-shadow: var(--ombre);
+}
+.compteur .valeur { font-size: 1.8rem; font-weight: 600; line-height: 1.2; }
+.compteur .libelle { color: var(--texte-doux); font-size: 0.85rem; margin-top: 0.2rem; }
+
+/* ---- Bloc prochaines actions ---- */
+.actions-liste {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-left: 3px solid var(--c-relance);
+  border-radius: var(--rayon);
+  padding: 0.8rem 1rem 0.8rem 1.4rem;
+  box-shadow: var(--ombre);
+}
+.actions-liste ul { margin: 0; padding-left: 1.2rem; }
+.actions-liste li { margin: 0.3rem 0; }
+
+/* ---- Tableau des candidatures ---- */
+.tableau-wrap {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  overflow-x: auto;
+  box-shadow: var(--ombre);
+}
+table { width: 100%; border-collapse: collapse; }
+th, td {
+  text-align: left;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--bordure);
+  white-space: nowrap;
+}
+th {
+  font-weight: 600;
+  color: var(--texte-doux);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); }
+
+/* ---- Badges de statut ---- */
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: 1px solid currentColor;
+}
+.badge-envoyee, .badge-sans_reponse { color: var(--c-neutre); }
+.badge-relancee { color: var(--c-relance); }
+.badge-entretien { color: var(--c-entretien); }
+.badge-offre { color: var(--c-favorable); }
+.badge-refus { color: var(--c-refus); }
+
+/* ---- Sections repliables (fiche detail) ---- */
+.section {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  margin: 1rem 0;
+  box-shadow: var(--ombre);
+  overflow: hidden;
+}
+.section > summary {
+  cursor: pointer;
+  padding: 0.9rem 1.2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.section > summary::-webkit-details-marker { display: none; }
+.section > summary::after {
+  content: "\25BC"; /* chevron bas */
+  font-size: 0.7rem;
+  color: var(--texte-doux);
+  transition: transform 0.15s ease;
+}
+.section:not([open]) > summary::after { transform: rotate(-90deg); }
+.section > summary:hover { background: var(--surface-2); }
+.section .section-corps { padding: 0.4rem 1.2rem 1.2rem; }
+
+/* Compteur d'elements dans le titre de section */
+.section .compte {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--texte-doux);
+  background: var(--surface-2);
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  margin-left: 0.5rem;
+}
+
+/* ---- Cartes (relances, contacts, entretiens, documents) ---- */
+.cartes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.8rem;
+  margin: 0.6rem 0 1rem;
+}
+.carte {
+  background: var(--surface-2);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 0.8rem 1rem;
+}
+.carte .titre-carte { font-weight: 600; }
+.carte .meta { color: var(--texte-doux); font-size: 0.85rem; margin: 0.2rem 0; }
+.carte p { margin: 0.4rem 0 0; white-space: pre-wrap; }
+.carte form { margin: 0.6rem 0 0; }
+
+/* ---- Formulaires ---- */
+form { margin: 1rem 0; }
+label { display: block; margin: 0.6rem 0 0.2rem; font-size: 0.9rem; font-weight: 500; }
+input, select, textarea {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--bordure-forte);
+  border-radius: 8px;
+  font: inherit;
+  background: var(--surface);
+  color: var(--texte);
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--c-entretien);
+  outline-offset: -1px;
+  border-color: var(--c-entretien);
+}
+textarea { min-height: 6rem; resize: vertical; }
+
+button {
+  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--bordure-forte);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--texte);
+  cursor: pointer;
+  font: inherit;
+}
+button:hover { border-color: var(--texte-doux); background: var(--surface-2); }
+button.principal {
+  background: var(--c-entretien);
+  border-color: var(--c-entretien);
+  color: #fff;
+}
+button.principal:hover { opacity: 0.9; }
+button.danger { color: var(--c-refus); border-color: var(--c-refus); }
+
+/* ---- Grille responsive du formulaire d'edition ---- */
+.form-grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0 1.2rem;
+}
+.form-grille .pleine-largeur { grid-column: 1 / -1; }
+
+/* ---- Formulaire d'ajout inline (relances, contacts...) ---- */
+.form-ajout {
+  background: var(--surface-2);
+  border: 1px dashed var(--bordure-forte);
+  border-radius: var(--rayon);
+  padding: 0.8rem 1rem;
+  margin-top: 0.8rem;
+}
+.form-ajout summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--c-entretien);
+  list-style: none;
+}
+.form-ajout summary::-webkit-details-marker { display: none; }
+.form-ajout[open] summary { margin-bottom: 0.4rem; }
+
+/* ---- Frise chronologique : conteneur compact ---- */
+.timeline {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 0.6rem 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  box-shadow: var(--ombre);
+}
+.timeline svg { display: block; }
+
+/* ---- Page de connexion ---- */
+.login-box {
+  max-width: 360px;
+  margin: 3rem auto;
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 1.5rem;
+  box-shadow: var(--ombre);
+}

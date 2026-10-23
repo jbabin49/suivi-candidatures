@@ -1,0 +1,44 @@
+# Deploiement avec SSO : l'application + un fournisseur OIDC leger
+# (Pocket ID ici, interchangeable avec Authelia, Authentik, Keycloak...).
+# Lancement :
+#     docker compose -f docker-compose.oidc.yml up -d
+#
+# Important : le SSO exige une coherence d'URL entre ce que voit le
+# navigateur et ce que voit l'application. Ce scenario est prevu pour
+# fonctionner derriere un reverse proxy avec un nom de domaine. En pur
+# localhost:port le flux OIDC peut echouer.
+#
+# A faire avant de lancer :
+# - renseigner les variables OIDC_* et SSO_PUBLIC_URL dans .env
+# - declarer l'URL de callback de l'app (https://votre-domaine/auth/callback)
+#   comme redirect URI autorisee dans le SSO.
+
+services:
+  app:
+    build: .
+    container_name: candidatures
+    restart: unless-stopped
+    environment:
+      AUTH_MODE: oidc
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - sso
+    ports:
+      - "8000:8000"
+
+  sso:
+    image: ghcr.io/pocket-id/pocket-id:latest
+    container_name: candidatures-sso
+    restart: unless-stopped
+    environment:
+      # Configuration propre au fournisseur (URL publique, cles...).
+      # Se reporter a la documentation de Pocket ID.
+      APP_URL: ${SSO_PUBLIC_URL}
+    volumes:
+      - ./sso-data:/app/data
+    ports:
+      - "1411:1411"

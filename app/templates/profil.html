@@ -1,0 +1,61 @@
+{#
+  Page du profil candidat : coordonnees reutilisables sur les candidatures
+  et CV principal (televerse une fois, reutilisable ensuite).
+#}
+{% extends "base.html" %}
+
+{% block titre %}Mon profil{% endblock %}
+
+{% block contenu %}
+<h1>Mon profil</h1>
+
+<details class="section" open>
+  <summary>Coordonnées</summary>
+  <div class="section-corps">
+    <form method="post" action="/profil">
+      <div class="form-grille">
+        <div>
+          <label>Téléphone</label>
+          <input type="text" name="telephone" value="{{ profil.telephone or '' }}">
+        </div>
+        <div>
+          <label>Email</label>
+          <input type="email" name="email_candidat" value="{{ profil.email_candidat or '' }}">
+        </div>
+        <div>
+          <label>LinkedIn</label>
+          <input type="url" name="linkedin" value="{{ profil.linkedin or '' }}">
+        </div>
+        <div>
+          <label>GitHub</label>
+          <input type="url" name="github" value="{{ profil.github or '' }}">
+        </div>
+      </div>
+      <button type="submit" class="principal" style="margin-top:0.8rem">Enregistrer</button>
+    </form>
+  </div>
+</details>
+
+<details class="section" open>
+  <summary>CV principal</summary>
+  <div class="section-corps">
+    {% if profil.cv_principal %}
+    <div class="carte" style="max-width:360px">
+      <div class="titre-carte">
+        <a href="/documents/{{ profil.cv_principal.id }}" target="_blank" rel="noopener">
+          {{ profil.cv_principal.nom_fichier }}
+        </a>
+      </div>
+      <div class="meta">CV par défaut, réutilisable sur une candidature.</div>
+    </div>
+    {% else %}
+    <p class="meta">Aucun CV principal enregistré.</p>
+    {% endif %}
+    <form method="post" action="/profil/cv" enctype="multipart/form-data">
+      <label>{{ "Remplacer le CV principal" if profil.cv_principal else "Téléverser un CV principal" }}</label>
+      <input type="file" name="fichier" required style="max-width:360px">
+      <button type="submit" class="principal" style="margin-top:0.5rem">Enregistrer le CV</button>
+    </form>
+  </div>
+</details>
+{% endblock %}

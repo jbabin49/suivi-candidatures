@@ -1,0 +1,26 @@
+# Framework web et serveur
+fastapi==0.161.1
+uvicorn[standard]==0.54.0
+
+# Base de donnees
+# Serie 2.0.x volontairement : 2.1.x apporte des ruptures non evaluees ici.
+SQLAlchemy==2.0.55
+
+# Configuration (.env)
+pydantic-settings==2.16.1
+
+# Gabarits et formulaires
+jinja2==3.1.6
+python-multipart==0.0.32
+
+# Sessions (middleware Starlette)
+itsdangerous==2.2.0
+
+# Authentification locale
+argon2-cffi==25.1.0
+
+# Authentification OIDC
+authlib==1.9.1
+# Derniere version de la serie 0.x. Starlette et authlib recommandent
+# desormais httpx2 ; cette migration est a traiter separement.
+httpx==0.28.1

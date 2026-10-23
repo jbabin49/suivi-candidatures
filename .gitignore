@@ -1,0 +1,21 @@
+# Donnees persistantes (base, uploads, cle de session)
+data/
+sso-data/
+
+# Configuration locale
+.env
+
+# Notes de securite internes : vecteurs d'exploitation detailles et
+# checklist de deploiement. Ne doit jamais etre publie.
+SECURITE-INTERNE.md
+
+# Outils locaux
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/

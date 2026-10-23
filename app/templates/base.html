@@ -1,0 +1,38 @@
+{#
+  Gabarit de base : structure HTML commune a toutes les pages (en-tete,
+  navigation, zone de contenu). Les autres gabarits en heritent via
+  {% extends "base.html" %} et remplissent le bloc "contenu".
+#}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titre %}Suivi de candidatures{% endblock %}</title>
+  {# Applique le theme memorise avant le rendu pour eviter tout
+     clignotement. Fichier externe et sans defer (donc synchrone) : un
+     <script> inline serait bloque par la Content-Security-Policy. #}
+  <script src="/static/js/theme-init.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <span class="marque"><a href="/" style="text-decoration:none;color:inherit">Suivi de candidatures</a></span>
+    <nav>
+      <a href="/">Accueil</a>
+      <a href="/profil">Profil</a>
+      <a href="/export.csv">Export CSV</a>
+      <button type="button" id="theme-toggle" class="theme-toggle">Mode sombre</button>
+      <form method="post" action="/logout" style="display:inline;margin:0">
+        <button type="submit">Déconnexion</button>
+      </form>
+    </nav>
+  </header>
+  <main>
+    {% block contenu %}{% endblock %}
+  </main>
+  <script src="/static/js/theme.js"></script>
+  <script src="/static/js/interactions.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
