@@ -44,14 +44,15 @@ entièrement de la manière dont il a été produit.
 | `semgrep` | 1.182.1 | packs `p/python`, `p/security-audit`, `p/jwt`, `p/sql-injection`, `p/xss` sur `app/` |
 | `semgrep` | 1.182.1 | packs `p/dockerfile`, `p/secrets` sur la racine |
 | `pytest` | 31 tests | exécutés dans un conteneur Python 3.12 |
-| `trivy` | **non exécuté** | non installé sur la machine d'audit |
+| `trivy` | 0.76.1 | `trivy fs .` (vulnérabilités des dépendances et secrets) et `trivy config .` (`Dockerfile` et `docker-compose.yml`) |
 
 `semgrep --config auto` n'a pas été utilisé : il exige l'activation de la
 télémétrie vers semgrep.dev. Les packs ci-dessus ont été retenus à la place.
 
-**`trivy` n'a pas été exécuté**, donc le scan de vulnérabilités du système de
-fichiers et l'analyse de mauvaise configuration du conteneur n'ont pas été
-faits. Cette étape reste à faire.
+**`trivy` a été exécuté.** `trivy fs .` ne remonte aucune vulnérabilité ni
+aucun secret. `trivy config .` a remonté une seule mauvaise configuration, de
+gravité faible : DS-0026, l'absence d'instruction `HEALTHCHECK` dans le
+`Dockerfile`. Elle est désormais corrigée.
 
 ## Findings corrigés
 
@@ -72,11 +73,13 @@ est corrigée ». Les modes opératoires d'exploitation ne sont pas publiés.
 | 15 | Faible | Injection de schéma d'URL : le lien d'un contact était rendu dans un attribut `href` sans contrôle de schéma | `app/routes/contacts.py`, `app/templates/candidature.html` | Validation serveur par liste blanche (`http` et `https` uniquement), plus un garde-fou à l'affichage pour les données antérieures. Complément automatique en `https://` pour un domaine nu | Corrigé le 23/10/2026 |
 | 19 | Faible | Dépendance vulnérable : évasions de bac à sable de gabarits. 3 CVE | `requirements.txt` | `jinja2` 3.1.4 vers 3.1.6. Non exploitable ici, aucun gabarit n'étant fourni par un utilisateur | Corrigé le 23/10/2026 |
 | 24 | Hors sécurité applicative | Données personnelles réelles dans les captures d'écran du dépôt | `docs/captures/` | Captures supprimées, références du README neutralisées. À régénérer depuis un jeu de données fictives | Corrigé le 23/10/2026 |
+| 25 | Faible | Absence de `HEALTHCHECK` conteneur : aucune sonde de santé déclarée dans l'image, l'orchestrateur ne pouvait pas distinguer un conteneur démarré d'un conteneur en état de fonctionner (`trivy` DS-0026) | `Dockerfile` | Ajout d'une instruction `HEALTHCHECK` interrogeant `/healthz`, la route déjà utilisée par `docker-compose.yml` | Corrigé le 24/10/2026 |
 
 La numérotation suit l'inventaire complet des 24 constats de l'audit, d'où les
 numéros manquants dans ce tableau : ils correspondent aux risques résiduels
 assumés, listés dans leur propre section plus bas, et aux signalements d'outils
-écartés comme faux positifs, documentés en fin de document.
+écartés comme faux positifs, documentés en fin de document. Le constat 25 est
+postérieur à cet audit : il vient du passage de `trivy`.
 
 ### Politique de sécurité du contenu retenue
 
@@ -228,7 +231,9 @@ d'abord. *Durcir* : préfixer ces champs d'une apostrophe à l'export.
 
 ## Résultat de la vérification de clôture
 
-Outils relancés le 23 octobre 2026, après tous les correctifs.
+Outils relancés le 23 octobre 2026, après tous les correctifs. `trivy` a été
+exécuté le 24 octobre 2026 : ses deux passes sont postérieures aux correctifs,
+sans mesure antérieure à laquelle les comparer.
 
 | Outil | Avant | Après |
 |---|---|---|
@@ -237,6 +242,8 @@ Outils relancés le 23 octobre 2026, après tous les correctifs.
 | `semgrep` packs applicatifs | 3 signalements | **1** (faux positif documenté) |
 | `semgrep` packs `dockerfile` et `secrets` | 1 signalement | **0** |
 | `pytest` | 8 tests | **31 tests, tous verts** |
+| `trivy fs .` | premier passage après correctifs | **0 vulnérabilité, 0 secret** |
+| `trivy config .` | 1 mauvaise configuration (DS-0026, gravité faible) | **0** |
 
 ### Faux positifs conservés
 
