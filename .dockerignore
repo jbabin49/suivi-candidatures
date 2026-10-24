@@ -6,6 +6,10 @@ sso-data/
 # Notes de securite internes : jamais dans l'image.
 SECURITE-INTERNE.md
 
+# Procedures de publication personnelles. Deja couvert par *.md plus bas,
+# mentionne en clair pour documenter l'intention.
+CLAUDE_PERSO.md
+
 # Python
 __pycache__/
 *.pyc

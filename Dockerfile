@@ -59,6 +59,12 @@ VOLUME ["/app/data"]
 
 EXPOSE 8000
 
+# Sonde de sante. Interroge /healthz, la meme route que celle utilisee par
+# le fichier Compose. Declaree avant USER pour rester groupee avec les
+# directives de configuration de l'image.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')" || exit 1
+
 # Tout ce qui suit, et le processus applicatif, tournent sans privileges.
 USER app
 

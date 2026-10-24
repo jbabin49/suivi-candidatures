@@ -9,6 +9,9 @@ sso-data/
 # checklist de deploiement. Ne doit jamais etre publie.
 SECURITE-INTERNE.md
 
+# Procedures de publication personnelles (registres, PAT, releases).
+CLAUDE_PERSO.md
+
 # Outils locaux
 .claude/
 
