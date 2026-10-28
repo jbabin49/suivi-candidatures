@@ -88,6 +88,8 @@ def creer(
     ville: str | None = Form(None),
     date_candidature: dt.date = Form(...),
     source: str | None = Form(None),
+    date_prochaine_action: dt.date | None = Form(None),
+    sans_relance_possible: bool = Form(False),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -95,6 +97,9 @@ def creer(
     Cree une candidature depuis le formulaire d'ajout de ligne de
     l'accueil. Les champs detailles (annonce, salaire...) se renseignent
     ensuite sur la page de detail.
+
+    A defaut de date fournie, la prochaine action est programmee a J+7
+    de la candidature : c'est elle qui pilote l'alerte de l'accueil.
     """
     candidature = Candidature(
         user_id=user.id,
@@ -104,6 +109,11 @@ def creer(
         date_candidature=date_candidature,
         source=source,
         statut=Statut.envoyee,
+        date_prochaine_action=(
+            date_prochaine_action
+            or relances_calc.echeance_apres(date_candidature)
+        ),
+        sans_relance_possible=sans_relance_possible,
     )
     db.add(candidature)
     db.commit()
@@ -165,6 +175,9 @@ def editer(
     statut: Statut = Form(...),
     source: str | None = Form(None),
     date_prochaine_action: dt.date | None = Form(None),
+    # Case a cocher : absente du POST quand elle n'est pas cochee, d'ou
+    # le defaut a faux qui la decoche.
+    sans_relance_possible: bool = Form(False),
     lien_annonce: str | None = Form(None),
     texte_annonce: str | None = Form(None),
     salaire: str | None = Form(None),
@@ -183,6 +196,7 @@ def editer(
     candidature.statut = statut
     candidature.source = source
     candidature.date_prochaine_action = date_prochaine_action
+    candidature.sans_relance_possible = sans_relance_possible
     candidature.lien_annonce = lien_annonce
     candidature.texte_annonce = texte_annonce
     candidature.salaire = salaire

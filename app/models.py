@@ -155,6 +155,12 @@ class Candidature(Base):
     )
     source: Mapped[str | None] = mapped_column(String(100), nullable=True)
     date_prochaine_action: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    # Candidature qu'on ne peut pas relancer (aucun contact, formulaire
+    # anonyme...). Cochee, elle ne remonte jamais dans les actions a mener,
+    # quelle que soit date_prochaine_action.
+    sans_relance_possible: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
 
     # Informations sur l'annonce.
     lien_annonce: Mapped[str | None] = mapped_column(String(1000), nullable=True)

@@ -27,6 +27,7 @@ class CandidatureBase(BaseModel):
     statut: Statut = Statut.envoyee
     source: str | None = None
     date_prochaine_action: dt.date | None = None
+    sans_relance_possible: bool = False
     lien_annonce: str | None = None
     texte_annonce: str | None = None
     salaire: str | None = None
@@ -51,6 +52,7 @@ class CandidatureUpdate(BaseModel):
     statut: Statut | None = None
     source: str | None = None
     date_prochaine_action: dt.date | None = None
+    sans_relance_possible: bool | None = None
     lien_annonce: str | None = None
     texte_annonce: str | None = None
     salaire: str | None = None

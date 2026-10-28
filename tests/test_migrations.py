@@ -1,10 +1,11 @@
 """
 Verifications sur les migrations Alembic.
 
-Trois garde-fous : la base est bien a la derniere revision apres
+Quatre garde-fous : la base est bien a la derniere revision apres
 init_db(), les migrations decrivent exactement les modeles (une
-evolution de modeles.py sans migration correspondante echoue ici), et
-une base anterieure a l'arrivee d'Alembic est rattrapee sans perte.
+evolution de modeles.py sans migration correspondante echoue ici), une
+base anterieure a l'arrivee d'Alembic est rattrapee sans perte, et ce
+rattrapage lui applique bien les migrations posterieures a la premiere.
 """
 
 from __future__ import annotations
@@ -56,8 +57,15 @@ def test_aucun_ecart_entre_migrations_et_modeles() -> None:
 def base_pre_alembic(monkeypatch: pytest.MonkeyPatch) -> Iterator[Engine]:
     """
     Base SQLite secondaire simulant une installation anterieure a
-    Alembic : les 7 tables creees par l'ancien create_all, et aucune
-    table alembic_version.
+    Alembic : les 7 tables du schema initial, et aucune table
+    alembic_version.
+
+    Ce schema n'est volontairement pas celui de create_all, qui suit les
+    modeles d'aujourd'hui et porterait donc deja les colonnes ajoutees
+    par les migrations posterieures a la premiere. Il est construit par
+    un upgrade jusqu'a la revision initiale, dont alembic_version est
+    ensuite effacee : on obtient exactement le schema de l'epoque, celui
+    que create_all produisait alors, et sans trace d'Alembic.
 
     L'isolation demande d'aligner deux choses sur ce fichier temporaire,
     sans quoi init_db() inspecterait une base et migrerait l'autre :
@@ -76,7 +84,9 @@ def base_pre_alembic(monkeypatch: pytest.MonkeyPatch) -> Iterator[Engine]:
     )
     monkeypatch.setattr(database, "engine", moteur)
 
-    Base.metadata.create_all(moteur)
+    command.upgrade(_alembic_config(), database.REVISION_INITIALE)
+    with moteur.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE alembic_version")
 
     try:
         yield moteur
@@ -89,6 +99,16 @@ def base_pre_alembic(monkeypatch: pytest.MonkeyPatch) -> Iterator[Engine]:
 def _revision_courante(moteur: Engine) -> str | None:
     with moteur.connect() as connection:
         return MigrationContext.configure(connection).get_current_revision()
+
+
+def _colonnes(moteur: Engine, table: str) -> set[str]:
+    return {colonne["name"] for colonne in inspect(moteur).get_columns(table)}
+
+
+def _head() -> str:
+    head = ScriptDirectory.from_config(_alembic_config()).get_current_head()
+    assert head is not None
+    return head
 
 
 def test_base_pre_alembic_est_tamponnee_puis_migree(base_pre_alembic: Engine) -> None:
@@ -116,7 +136,7 @@ def test_base_pre_alembic_est_tamponnee_puis_migree(base_pre_alembic: Engine) ->
 
     database.init_db()
 
-    assert _revision_courante(base_pre_alembic) == database.REVISION_INITIALE
+    assert _revision_courante(base_pre_alembic) == _head()
     assert set(inspect(base_pre_alembic).get_table_names()) == tables_avant | {
         "alembic_version"
     }
@@ -134,20 +154,19 @@ def test_init_db_est_idempotent_sur_base_pre_alembic(base_pre_alembic: Engine) -
     base n'est plus vue comme anterieure a Alembic, et reste a head.
     """
     database.init_db()
-    head = ScriptDirectory.from_config(_alembic_config()).get_current_head()
 
     database.init_db()
     database.init_db()
 
     assert database._schema_anterieur_a_alembic() is False
-    assert _revision_courante(base_pre_alembic) == head
+    assert _revision_courante(base_pre_alembic) == _head()
     with base_pre_alembic.connect() as connection:
         contexte = MigrationContext.configure(connection)
         assert compare_metadata(contexte, Base.metadata) == []
 
 
-def test_stamp_cible_la_revision_initiale_et_non_head(
-    base_pre_alembic: Engine, monkeypatch: pytest.MonkeyPatch
+def test_base_pre_alembic_recoit_les_migrations_posterieures(
+    base_pre_alembic: Engine,
 ) -> None:
     """
     Garde-fou contre un retour a stamp("head").
@@ -155,20 +174,18 @@ def test_stamp_cible_la_revision_initiale_et_non_head(
     Une base anterieure a Alembic est au niveau de la migration
     initiale, pas de la derniere : la tamponner a head la marquerait
     comme deja a jour de toutes les migrations, et celles posterieures
-    a la premiere ne lui seraient jamais appliquees. Les deux revisions
-    coincident tant qu'il n'existe qu'une migration, d'ou cette
-    verification sur la cible demandee et non sur son resultat.
+    a la premiere ne lui seraient jamais appliquees.
+
+    Verification par l'effet : la base part du schema initial, donc sans
+    la colonne sans_relance_possible ajoutee par la deuxieme migration.
+    Si init_db() tamponnait head, l'upgrade n'aurait rien a appliquer et
+    la colonne resterait absente.
     """
-    cibles: list[str] = []
-    stamp_reel = command.stamp
-
-    def stamp_espionne(config: object, revision: str, **kwargs: object) -> None:
-        cibles.append(revision)
-        stamp_reel(config, revision, **kwargs)
-
-    monkeypatch.setattr(command, "stamp", stamp_espionne)
+    assert "sans_relance_possible" not in _colonnes(
+        base_pre_alembic, "candidatures"
+    )
 
     database.init_db()
 
-    assert cibles == [database.REVISION_INITIALE]
-    assert "head" not in cibles
+    assert _revision_courante(base_pre_alembic) == _head()
+    assert "sans_relance_possible" in _colonnes(base_pre_alembic, "candidatures")

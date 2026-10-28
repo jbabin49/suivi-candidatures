@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Candidature, Relance, User
+from app.services import relances_calc
 from app.session import get_current_user
 
 router = APIRouter(tags=["relances"])
@@ -47,6 +48,13 @@ def ajouter(
     )
     db.add(relance)
     db.commit()
+
+    # La relance vient d'etre faite : la prochaine action est repoussee a
+    # +7 jours, ce qui eteint l'alerte de l'accueil. La date reste
+    # modifiable a la main sur la fiche.
+    candidature.date_prochaine_action = relances_calc.echeance_apres(date)
+    db.commit()
+
     return RedirectResponse(
         url=f"/candidatures/{candidature_id}",
         status_code=status.HTTP_303_SEE_OTHER,
@@ -60,7 +68,11 @@ def supprimer(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Supprime une relance."""
+    """
+    Supprime une relance. La date de prochaine action n'est pas
+    recalculee : une suppression corrige une saisie, elle ne doit pas
+    rallumer une alerte que l'utilisateur a pu reprogrammer depuis.
+    """
     candidature = _get_owned_candidature(db, candidature_id, user)
     relance = db.get(Relance, relance_id)
     if relance is None or relance.candidature_id != candidature.id:

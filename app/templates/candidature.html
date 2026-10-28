@@ -63,6 +63,18 @@
             value="{{ candidature.date_prochaine_action.isoformat() if candidature.date_prochaine_action else '' }}">
         </div>
         <div>
+          {# Cochee, la candidature ne remonte jamais dans les actions a
+             mener de l'accueil, meme avec une date de prochaine action
+             echue. #}
+          <label>Relance</label>
+          <label for="sans_relance_possible" style="font-weight:normal">
+            <input type="checkbox" id="sans_relance_possible"
+              name="sans_relance_possible" value="1"
+              {% if candidature.sans_relance_possible %}checked{% endif %}>
+            Aucun moyen de relancer cette candidature
+          </label>
+        </div>
+        <div>
           <label>Salaire</label>
           <input type="text" name="salaire" value="{{ candidature.salaire or '' }}">
         </div>

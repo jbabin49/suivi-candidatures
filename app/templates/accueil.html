@@ -37,11 +37,10 @@
       <a href="/candidatures/{{ action.candidature.id }}">
         {{ action.candidature.offre }} - {{ action.candidature.entreprise }}
       </a>
-      : relance J+{{ action.jour_jalon }}
       {% if action.en_retard %}
-        <strong style="color:var(--c-refus)">en retard (du {{ action.echeance.strftime('%d/%m/%Y') }})</strong>
+        : <strong style="color:var(--c-refus)">à relancer depuis le {{ action.echeance.strftime('%d/%m/%Y') }}</strong>
       {% else %}
-        à faire aujourd'hui
+        : à relancer aujourd'hui
       {% endif %}
     </li>
     {% endfor %}
