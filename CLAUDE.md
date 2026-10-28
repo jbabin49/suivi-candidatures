@@ -86,6 +86,23 @@ tests/               Tests
   - *rate limiting* sur `POST /login` — **priorité** ;
   - invalidation de session côté serveur (la session est aujourd'hui un cookie
     signé sans état serveur, donc non révocable à distance) ;
-  - filtre d'accès OIDC (restreindre qui peut se connecter via le fournisseur) ;
-  - **migrations Alembic avant toute évolution du schéma** (le schéma est
-    actuellement créé automatiquement au démarrage, sans migrations).
+  - filtre d'accès OIDC (restreindre qui peut se connecter via le fournisseur).
+
+## Migrations de base de données
+
+Le schéma est **versionné par Alembic** (`alembic.ini`, `migrations/`). Les
+migrations sont appliquées automatiquement au démarrage : `init_db()`
+(voir [app/database.py](app/database.py)) lance un `alembic upgrade head`, et
+tamponne au préalable une base pré-Alembic existante, dont les tables avaient
+été créées par `create_all`, pour ne pas tenter de les recréer.
+
+Toute évolution du schéma passe désormais par une migration :
+
+```bash
+alembic revision --autogenerate -m "description du changement"
+```
+
+Relire la migration générée avant de la committer. `render_as_batch=True` est
+déjà configuré dans [migrations/env.py](migrations/env.py) : SQLite ne sait pas
+faire d'`ALTER TABLE ... ALTER COLUMN`, le mode batch recrée la table pour ces
+modifications.

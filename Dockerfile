@@ -35,6 +35,13 @@ COPY app/ ./app/
 # construction si l'un de ces scripts optionnels est absent.
 COPY *.py ./
 
+# Migrations de schema. Appliquees au demarrage par init_db(), donc
+# indispensables dans l'image : sans elles, l'application demarre sur
+# une base vide et sans tables. alembic.ini est attendu a la racine du
+# projet, soit /app, par app/database.py.
+COPY alembic.ini ./
+COPY migrations/ ./migrations/
+
 # Donnees et scripts de demonstration (jeu fictif pour les captures et la
 # contribution), utilisables via :
 #     docker compose exec app python donnees_demo/seed_demo.py
@@ -45,8 +52,8 @@ COPY donnees_demo/ ./donnees_demo/
 # l'utilisateur non privilegie ne pourrait pas lire son propre code.
 # a+rX ajoute la lecture pour tous, et le parcours sur les dossiers
 # seulement. L'ecriture reste reservee a root.
-RUN chmod -R a+rX /app/app /app/donnees_demo /app/requirements.txt \
-    && chmod a+r /app/*.py
+RUN chmod -R a+rX /app/app /app/donnees_demo /app/migrations /app/requirements.txt \
+    && chmod a+r /app/*.py /app/alembic.ini
 
 # Dossier des donnees persistantes. Cree et attribue a l'utilisateur
 # applicatif AVANT la declaration du volume, pour qu'un volume Docker

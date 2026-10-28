@@ -11,7 +11,7 @@ SECURITE-INTERNE.md
 CLAUDE_PERSO.md
 
 # Python
-__pycache__/
+**/__pycache__/
 *.pyc
 .venv/
 venv/

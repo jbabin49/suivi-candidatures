@@ -201,9 +201,11 @@ git pull
 docker compose up -d --build
 ```
 
-Le schéma de base est créé automatiquement au démarrage. Cette version n'inclut
-pas de migrations (Alembic) : tant que le modèle de données ne change pas, aucune
-action n'est nécessaire.
+Le schéma de base est versionné par Alembic et migré automatiquement au
+démarrage : aucune action manuelle. Une nouvelle installation crée la base
+complète ; une base existante issue d'une version antérieure est détectée et
+alignée automatiquement (estampillée, puis migrée). La mise à jour reste donc
+`git pull` puis `docker compose up -d --build`, sans étape supplémentaire.
 
 ## Dépannage
 

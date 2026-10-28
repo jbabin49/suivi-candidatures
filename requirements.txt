@@ -6,6 +6,9 @@ uvicorn[standard]==0.54.0
 # Serie 2.0.x volontairement : 2.1.x apporte des ruptures non evaluees ici.
 SQLAlchemy==2.0.55
 
+# Migrations de schema. Appliquees au demarrage (voir app/database.py).
+alembic==1.20.1
+
 # Configuration (.env)
 pydantic-settings==2.16.1
 
