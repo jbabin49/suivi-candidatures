@@ -1,0 +1,34 @@
+{#
+  Ecran de premiere connexion, mode auth locale : creation du premier
+  compte quand la base ne contient encore aucun utilisateur. La route
+  /bienvenue redirige vers /login des qu'un compte existe, cette page
+  n'est donc visible qu'une seule fois dans la vie d'une instance.
+#}
+{% extends "base.html" %}
+
+{% block titre %}Bienvenue{% endblock %}
+
+{% block contenu %}
+<div class="login-box">
+  <h1>Bienvenue</h1>
+  <p>Créez votre compte pour commencer à suivre vos candidatures.</p>
+  {% if erreur %}
+  <p style="color:var(--c-refus)">{{ erreur }}</p>
+  {% endif %}
+  <form method="post" action="/bienvenue">
+    <label>Email</label>
+    <input type="email" name="email" value="{{ email | default('') }}" required autofocus>
+    <label>Nom affiché</label>
+    <input type="text" name="nom_affichage" value="{{ nom_affichage | default('') }}" required>
+    <label>Mot de passe</label>
+    <input type="password" name="password" minlength="8" required>
+    <label>Confirmation du mot de passe</label>
+    <input type="password" name="password_confirm" minlength="8" required>
+    {# L'application n'a aucune route de recuperation de mot de passe :
+       le signaler ici evite un compte definitivement inaccessible. #}
+    <p>8 caractères minimum. Aucune procédure de récupération n'existe :
+      notez-le en lieu sûr.</p>
+    <button type="submit" class="principal" style="margin-top:0.8rem;width:100%">Créer mon compte</button>
+  </form>
+</div>
+{% endblock %}

@@ -25,10 +25,11 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
-from app.database import init_db
+from app.database import get_db, init_db
 from app.routes import (
     candidatures,
     contacts,
@@ -240,10 +241,22 @@ else:
     app.include_router(local.router)
 
     @app.get("/login", response_class=HTMLResponse)
-    def page_login(request: Request, user=Depends(get_optional_user)):
-        """Affiche le formulaire de connexion (ou redirige si deja connecte)."""
+    def page_login(
+        request: Request,
+        user=Depends(get_optional_user),
+        db: Session = Depends(get_db),
+    ):
+        """
+        Affiche le formulaire de connexion (ou redirige si deja connecte).
+
+        Base vide : il n'existe aucun identifiant a saisir, ni aucune
+        route pour en creer depuis l'interface hors /bienvenue. On y
+        renvoie donc, plutot que d'afficher un formulaire inutilisable.
+        """
         if user is not None:
             return RedirectResponse(url="/")
+        if local.aucun_utilisateur(db):
+            return RedirectResponse(url="/bienvenue")
         return templates.TemplateResponse(request, "login.html", {})
 
 

@@ -91,7 +91,12 @@ docker compose up -d
 L'application est disponible sur http://localhost:8000.
 
 Le compte administrateur défini par `ADMIN_EMAIL` / `ADMIN_PASSWORD` est créé
-automatiquement au premier démarrage. Pour créer un compte ensuite :
+automatiquement au premier démarrage. Ces variables sont facultatives : si vous
+les laissez vides, l'application affiche un écran **Bienvenue** à la première
+visite, qui crée le premier compte depuis l'interface. Cet écran disparaît dès
+qu'un compte existe (voir [SECURITE.md](SECURITE.md)).
+
+Pour créer un compte supplémentaire ensuite :
 
 ```bash
 docker compose exec app python creer_utilisateur.py <email> "<Nom affiché>"

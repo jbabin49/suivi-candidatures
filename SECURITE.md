@@ -154,6 +154,37 @@ sans attribut `src`, sur aucune page.
 Ces points sont connus, jugés proportionnés à un usage auto-hébergé, et non
 corrigés. Chacun indique comment le durcir.
 
+**Création du premier compte sans authentification (`/bienvenue`).** En mode
+auth locale, les routes `GET` et `POST /bienvenue` permettent de créer un
+compte **sans être authentifié**. C'est une fenêtre de configuration, du type
+*installeur web* : elle n'est ouverte que tant que la base ne contient aucun
+utilisateur, et se referme définitivement dès le premier compte créé. Elle
+existe parce que sans elle, un premier lancement sans `ADMIN_EMAIL` /
+`ADMIN_PASSWORD` aboutit à un `/login` sans identifiants possibles et sans
+aucun moyen d'en créer depuis l'interface — situation normale pour la version
+de bureau, qui n'a ni ligne de commande ni `.env`.
+
+Trois propriétés délimitent le risque :
+
+- la condition « aucun utilisateur » est revérifiée **côté serveur juste avant
+  l'insertion**, et pas seulement à l'affichage du formulaire. Un `POST` sur un
+  formulaire chargé avant la création d'un compte par une autre voie (variables
+  `ADMIN_*`, `creer_utilisateur.py`, autre onglet) ne crée rien et redirige
+  vers `/login` ;
+- les routes sont portées par le routeur de `app/auth/local.py`, monté
+  uniquement si `AUTH_MODE=local`. **En mode OIDC, elles n'existent pas** :
+  c'est le fournisseur d'identité qui décide qui a un compte ;
+- une fois un compte créé, les deux routes redirigent vers `/login` sans jamais
+  rien écrire.
+
+La fenêtre résiduelle est donc celle d'une instance déployée et laissée sans
+compte : le premier visiteur deviendrait propriétaire de l'instance. C'est
+cohérent avec le périmètre de l'application — réseau local, ou derrière un
+reverse proxy — et avec la pratique courante des installeurs web. *Durcir* :
+renseigner `ADMIN_EMAIL` / `ADMIN_PASSWORD`, ou créer le compte avec
+`creer_utilisateur.py` **avant** la première exposition réseau, ce qui ferme la
+fenêtre avant qu'elle ne soit atteignable.
+
 **Pas de jeton anti-CSRF.** La protection repose sur l'attribut `SameSite=Lax`
 du cookie de session, désormais posé explicitement, qui empêche le navigateur
 d'envoyer le cookie sur une requête `POST` provenant d'un autre site. C'est une
