@@ -102,6 +102,37 @@ Pour créer un compte supplémentaire ensuite :
 docker compose exec app python creer_utilisateur.py <identifiant> "<Nom affiché>"
 ```
 
+## Plusieurs comptes sur une instance
+
+En auth locale, l'application accepte plusieurs comptes sur la même instance.
+Chacun a ses propres candidatures, contacts, entretiens et documents : un compte
+ne voit jamais les données d'un autre dans l'interface.
+
+Le modèle est **plat** — aucun rôle d'administrateur, tous les comptes sont
+égaux :
+
+| Depuis l'interface | Qui | Où |
+| --- | --- | --- |
+| Voir la liste des comptes | tout compte connecté | **Comptes** |
+| Créer un compte | tout compte connecté | **Comptes** |
+| Changer son mot de passe | chacun, le sien uniquement | **Mot de passe** |
+| Supprimer son compte | chacun, le sien uniquement | **Comptes** |
+
+Deux garde-fous : le changement de mot de passe exige le mot de passe actuel, et
+le dernier compte restant n'est pas supprimable (l'instance se retrouverait sans
+utilisateur). Supprimer un compte efface définitivement ses données, fichiers
+téléversés compris.
+
+> ⚠️ **La séparation entre comptes est logique, pas chiffrée.** La base SQLite
+> est en clair : qui a accès au dossier `data/` (serveur, sauvegarde, accès root)
+> lit les données de tous les comptes. Le multi-compte convient à un poste
+> familial ou à un petit groupe qui se connaît ; il ne protège pas les
+> utilisateurs les uns des autres. Pour des données mutuellement opaques, il faut
+> une instance par personne. Voir [SECURITE.md](SECURITE.md).
+
+Ces écrans n'existent qu'en auth locale. En mode OIDC, les comptes sont gérés
+par le fournisseur d'identité.
+
 ## Déploiement avec SSO (OIDC)
 
 Un second fichier Compose démarre l'application avec un fournisseur OIDC léger
@@ -307,6 +338,7 @@ app/
   auth/              Authentification locale et OIDC
   routes/            Routes HTTP (candidatures, relances, contacts...)
   services/          Logique métier (timeline, stats, calcul des relances)
+  templating.py      Instance Jinja2 partagee
   templates/         Gabarits Jinja2
   static/            CSS et JavaScript
 creer_utilisateur.py Création d'un compte en ligne de commande

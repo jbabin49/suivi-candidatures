@@ -238,9 +238,14 @@ if settings.auth_mode == "oidc":
 
     app.include_router(oidc.router)
 else:
-    from app.auth import local
+    from app.auth import comptes, local
 
     app.include_router(local.router)
+    # Gestion des comptes locaux : liste, creation, mot de passe,
+    # suppression de son propre compte. Montee ici et non avec les
+    # routes fonctionnelles : en mode OIDC ces routes n'ont pas lieu
+    # d'etre, les comptes appartenant au fournisseur d'identite.
+    app.include_router(comptes.router)
 
     @app.get("/login", response_class=HTMLResponse)
     def page_login(

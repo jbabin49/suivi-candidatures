@@ -22,6 +22,12 @@
       <a href="/">Accueil</a>
       <a href="/profil">Profil</a>
       <a href="/export.csv">Export CSV</a>
+      {# Gestion des comptes : routes montees en auth locale seulement.
+         En OIDC elles n'existent pas, les liens seraient des 404. #}
+      {% if auth_locale %}
+      <a href="/comptes">Comptes</a>
+      <a href="/mon-compte/mot-de-passe">Mot de passe</a>
+      {% endif %}
       <button type="button" id="theme-toggle" class="theme-toggle">Mode sombre</button>
       <form method="post" action="/logout" style="display:inline;margin:0">
         <button type="submit">Déconnexion</button>
