@@ -7,7 +7,6 @@ n'existe pas encore lors de la premiere edition.
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from fastapi import (
     APIRouter,
@@ -19,18 +18,15 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Document, Profil, TypeDocument, User
 from app.services import fichiers
+from app.templating import templates
 from app.session import get_current_user
 
 router = APIRouter(tags=["profil"])
-templates = Jinja2Templates(
-    directory=Path(__file__).resolve().parent.parent / "templates"
-)
 
 
 def _get_or_create_profil(db: Session, user: User) -> Profil:

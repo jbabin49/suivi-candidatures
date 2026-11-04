@@ -10,13 +10,11 @@ relances) est deleguee aux services, ces routes restent courtes.
 
 from __future__ import annotations
 
-from pathlib import Path
 
 import datetime as dt
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -25,12 +23,10 @@ from app.models import Candidature, Statut, User
 from app.services import stats as stats_service
 from app.services import timeline as timeline_service
 from app.services import relances_calc
+from app.templating import templates
 from app.session import get_current_user
 
 router = APIRouter(tags=["candidatures"])
-templates = Jinja2Templates(
-    directory=Path(__file__).resolve().parent.parent / "templates"
-)
 
 
 def _get_owned_candidature(

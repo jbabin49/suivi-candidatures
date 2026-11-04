@@ -9,13 +9,10 @@ connexion (/bienvenue), qui cree le premier compte quand la base est vide.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,12 +21,9 @@ from app.database import get_db
 from app.models import User
 from app.schemas import CompteCreate
 from app.session import login_user, logout_user
+from app.templating import templates
 
 router = APIRouter(tags=["auth"])
-
-# Gabarits : meme dossier que celui monte par main.py. Resolu ici plutot
-# qu'importe de main.py, qui importe ce module (dependance circulaire).
-templates = Jinja2Templates(directory=Path(__file__).resolve().parent.parent / "templates")
 
 _hasher = PasswordHasher()
 
