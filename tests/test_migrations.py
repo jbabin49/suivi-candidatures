@@ -123,16 +123,16 @@ def test_base_pre_alembic_est_tamponnee_puis_migree(base_pre_alembic: Engine) ->
     assert database._schema_anterieur_a_alembic() is True
     assert _revision_courante(base_pre_alembic) is None
 
-    # Donnee preexistante : la migration ne doit pas repartir d'une base vide.
-    with Session(base_pre_alembic) as db:
-        db.add(
-            User(
-                email="avant-alembic@local",
-                nom_affichage="Avant Alembic",
-                password_hash="x",
-            )
+    # Donnee preexistante : la migration ne doit pas repartir d'une base
+    # vide. Insertion en SQL brut et avec l'ancien nom de colonne
+    # (users.email) : a ce stade la base est au schema initial, alors que
+    # le modele User decrit deja users.identifiant. C'est precisement ce
+    # que le renommage doit rattraper sans perdre la ligne.
+    with base_pre_alembic.begin() as connection:
+        connection.exec_driver_sql(
+            "INSERT INTO users (email, nom_affichage, password_hash, created_at)"
+            " VALUES ('avant-alembic', 'Avant Alembic', 'x', datetime())"
         )
-        db.commit()
 
     database.init_db()
 
@@ -140,8 +140,9 @@ def test_base_pre_alembic_est_tamponnee_puis_migree(base_pre_alembic: Engine) ->
     assert set(inspect(base_pre_alembic).get_table_names()) == tables_avant | {
         "alembic_version"
     }
+    # La ligne a survecu au renommage de la colonne, avec sa valeur.
     with Session(base_pre_alembic) as db:
-        assert db.query(User).filter_by(email="avant-alembic@local").count() == 1
+        assert db.query(User).filter_by(identifiant="avant-alembic").count() == 1
 
     with base_pre_alembic.connect() as connection:
         contexte = MigrationContext.configure(connection)

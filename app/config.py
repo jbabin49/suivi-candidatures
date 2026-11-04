@@ -68,16 +68,31 @@ class Settings(BaseSettings):
     # l'application (XSS stockee).
     upload_extensions: str = "pdf,doc,docx,odt,png,jpg,jpeg,webp"
 
-    # Compte administrateur cree automatiquement au premier demarrage
-    # en mode local, s'il n'existe aucun utilisateur. Laisser vide pour
-    # creer le compte manuellement (script creer_utilisateur.py).
-    admin_email: str | None = None
+    # Compte initial cree automatiquement au premier demarrage en mode
+    # local, s'il n'existe aucun utilisateur. Laisser vide pour creer le
+    # compte depuis l'ecran /bienvenue, ou avec creer_utilisateur.py.
+    admin_identifiant: str | None = None
     admin_password: str | None = None
+
+    # Ancien nom de admin_identifiant, du temps ou l'identifiant de
+    # connexion etait une adresse email. Conserve pour ne pas casser les
+    # deploiements dont le .env porte encore ADMIN_EMAIL ; voir
+    # identifiant_initial, qui applique le repli.
+    admin_email: str | None = None
 
     # Parametres OIDC, utilises uniquement si auth_mode == "oidc".
     oidc_issuer_url: str | None = None
     oidc_client_id: str | None = None
     oidc_client_secret: str | None = None
+
+    @property
+    def identifiant_initial(self) -> str | None:
+        """
+        Identifiant du compte initial : ADMIN_IDENTIFIANT, ou a defaut
+        ADMIN_EMAIL pour les deploiements anterieurs au renommage. None
+        si aucune des deux n'est definie.
+        """
+        return self.admin_identifiant or self.admin_email
 
     @property
     def extensions_autorisees(self) -> frozenset[str]:

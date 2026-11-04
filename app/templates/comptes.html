@@ -1,0 +1,100 @@
+{#
+  Comptes locaux : liste et creation. Mode auth locale uniquement, ces
+  routes n'etant pas montees en OIDC.
+
+  Modele plat : tous les comptes sont egaux, aucun role d'administrateur.
+  Chacun ne peut agir que sur le sien, d'ou le formulaire de suppression
+  present sur sa seule ligne.
+
+  Aucun <script> inline, aucun | safe : les identifiants et noms affiches
+  sont saisis par les utilisateurs et passent par l'echappement
+  automatique de Jinja2.
+#}
+{% extends "base.html" %}
+
+{% block titre %}Comptes{% endblock %}
+
+{% block contenu %}
+<h1>Comptes</h1>
+
+{% if erreur %}
+<p style="color:var(--c-refus)">{{ erreur }}</p>
+{% endif %}
+
+<div class="tableau-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Identifiant</th>
+        <th>Nom affiché</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for compte in comptes %}
+      <tr>
+        <td>{{ compte.identifiant }}</td>
+        <td>{{ compte.nom_affichage }}</td>
+        <td>
+          {% if compte.id == utilisateur.id %}
+          <span class="discret">vous</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<details class="section">
+  <summary>Créer un compte</summary>
+  <div class="section-corps">
+    <p class="discret">
+      Tout compte peut en créer un autre. Le nouveau compte démarre vide et
+      ne voit pas vos candidatures.
+    </p>
+    <form method="post" action="/comptes">
+      <div class="form-grille">
+        <div>
+          <label>Identifiant</label>
+          <input type="text" name="identifiant" value="{{ identifiant | default('') }}" required>
+        </div>
+        <div>
+          <label>Nom affiché <span class="discret">(facultatif)</span></label>
+          <input type="text" name="nom_affichage" value="{{ nom_affichage | default('') }}">
+        </div>
+        <div>
+          <label>Mot de passe</label>
+          <input type="password" name="password" minlength="8" required>
+        </div>
+        <div>
+          <label>Confirmation</label>
+          <input type="password" name="password_confirm" minlength="8" required>
+        </div>
+      </div>
+      <button type="submit" class="principal">Créer le compte</button>
+    </form>
+  </div>
+</details>
+
+<details class="section">
+  <summary>Supprimer mon compte</summary>
+  <div class="section-corps">
+    <p>
+      Supprime définitivement le compte <strong>{{ utilisateur.identifiant }}</strong>,
+      avec ses candidatures, ses contacts, ses entretiens et ses documents
+      téléversés. <strong>Cette action est irréversible.</strong>
+    </p>
+    <p class="discret">
+      Vous ne pouvez supprimer que votre propre compte, et seulement s'il
+      n'est pas le dernier de l'instance.
+    </p>
+    {# data-confirmer : la confirmation est posee par interactions.js, un
+       onclick inline serait bloque par la Content-Security-Policy. #}
+    <form method="post" action="/comptes/{{ utilisateur.id }}/supprimer"
+          data-confirmer="Supprimer définitivement votre compte et toutes ses données ?">
+      <button type="submit" class="danger">Supprimer mon compte</button>
+    </form>
+  </div>
+</details>
+{% endblock %}

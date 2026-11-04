@@ -26,7 +26,7 @@ def _cookie_de_session(reponse) -> str:
 
 def test_drapeaux_du_cookie_de_session():
     c = TestClient(app, follow_redirects=False)
-    r = c.post("/login", data={"email": "test@local", "password": "motdepasse"})
+    r = c.post("/login", data={"identifiant": "test", "password": "motdepasse"})
     cookie = _cookie_de_session(r).lower()
 
     assert "httponly" in cookie  # inaccessible au JavaScript
@@ -44,7 +44,7 @@ def test_secure_absent_en_http_par_defaut():
     """
     assert get_settings().session_cookie_secure is False
     c = TestClient(app, follow_redirects=False)
-    r = c.post("/login", data={"email": "test@local", "password": "motdepasse"})
+    r = c.post("/login", data={"identifiant": "test", "password": "motdepasse"})
     assert "secure" not in _cookie_de_session(r).lower()
 
 

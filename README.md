@@ -84,18 +84,54 @@ Démarche de sécurité : voir [SECURITE.md](SECURITE.md).
 
 ```bash
 cp .env.example .env
-# Renseigner ADMIN_EMAIL et ADMIN_PASSWORD dans .env pour créer le premier compte
+# Facultatif : renseigner ADMIN_IDENTIFIANT et ADMIN_PASSWORD dans .env
 docker compose up -d
 ```
 
 L'application est disponible sur http://localhost:8000.
 
-Le compte administrateur défini par `ADMIN_EMAIL` / `ADMIN_PASSWORD` est créé
-automatiquement au premier démarrage. Pour créer un compte ensuite :
+Le compte défini par `ADMIN_IDENTIFIANT` / `ADMIN_PASSWORD` est créé
+automatiquement au premier démarrage. Ces variables sont facultatives : si vous
+les laissez vides, l'application affiche un écran **Bienvenue** à la première
+visite, qui crée le premier compte depuis l'interface. Cet écran disparaît dès
+qu'un compte existe (voir [SECURITE.md](SECURITE.md)).
+
+Pour créer un compte supplémentaire ensuite :
 
 ```bash
-docker compose exec app python creer_utilisateur.py <email> "<Nom affiché>"
+docker compose exec app python creer_utilisateur.py <identifiant> "<Nom affiché>"
 ```
+
+## Plusieurs comptes sur une instance
+
+En auth locale, l'application accepte plusieurs comptes sur la même instance.
+Chacun a ses propres candidatures, contacts, entretiens et documents : un compte
+ne voit jamais les données d'un autre dans l'interface.
+
+Le modèle est **plat** — aucun rôle d'administrateur, tous les comptes sont
+égaux :
+
+| Depuis l'interface | Qui | Où |
+| --- | --- | --- |
+| Voir la liste des comptes | tout compte connecté | **Comptes** |
+| Créer un compte | tout compte connecté | **Comptes** |
+| Changer son mot de passe | chacun, le sien uniquement | **Mot de passe** |
+| Supprimer son compte | chacun, le sien uniquement | **Comptes** |
+
+Deux garde-fous : le changement de mot de passe exige le mot de passe actuel, et
+le dernier compte restant n'est pas supprimable (l'instance se retrouverait sans
+utilisateur). Supprimer un compte efface définitivement ses données, fichiers
+téléversés compris.
+
+> ⚠️ **La séparation entre comptes est logique, pas chiffrée.** La base SQLite
+> est en clair : qui a accès au dossier `data/` (serveur, sauvegarde, accès root)
+> lit les données de tous les comptes. Le multi-compte convient à un poste
+> familial ou à un petit groupe qui se connaît ; il ne protège pas les
+> utilisateurs les uns des autres. Pour des données mutuellement opaques, il faut
+> une instance par personne. Voir [SECURITE.md](SECURITE.md).
+
+Ces écrans n'existent qu'en auth locale. En mode OIDC, les comptes sont gérés
+par le fournisseur d'identité.
 
 ## Déploiement avec SSO (OIDC)
 
@@ -128,7 +164,7 @@ Toute la configuration passe par le fichier `.env` (voir `.env.example`) :
 |---|---|---|
 | `AUTH_MODE` | `local` ou `oidc` | `local` |
 | `ENABLE_DOCS` | Expose les pages de documentation générées par FastAPI, `/docs`, `/redoc` et `/openapi.json` (sans authentification) | `false` |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Compte créé au premier démarrage (mode local) | vide |
+| `ADMIN_IDENTIFIANT` / `ADMIN_PASSWORD` | Compte créé au premier démarrage (mode local) ; `ADMIN_EMAIL` reste accepté comme ancien nom | vide |
 | `SECRET_KEY` | Clé de session ; `change-me` = génération auto persistée | `change-me` |
 | `SESSION_COOKIE_SECURE` | Drapeau `Secure` du cookie de session (à activer en HTTPS) | `false` |
 | `SESSION_MAX_AGE` | Durée de vie d'une session, en secondes | `43200` (12 h) |
@@ -238,7 +274,7 @@ conteneur sur votre compte, en ajoutant au service `app` du fichier Compose :
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python creer_utilisateur.py vous@example.com "Votre nom"
+python creer_utilisateur.py julien "Votre nom"
 uvicorn app.main:app --reload
 ```
 
@@ -302,6 +338,7 @@ app/
   auth/              Authentification locale et OIDC
   routes/            Routes HTTP (candidatures, relances, contacts...)
   services/          Logique métier (timeline, stats, calcul des relances)
+  templating.py      Instance Jinja2 partagee
   templates/         Gabarits Jinja2
   static/            CSS et JavaScript
 creer_utilisateur.py Création d'un compte en ligne de commande

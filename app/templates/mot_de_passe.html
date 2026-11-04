@@ -1,0 +1,43 @@
+{#
+  Changement de son propre mot de passe. Mode auth locale uniquement.
+
+  La cible n'apparait dans aucun champ : la route agit sur l'utilisateur
+  resolu depuis la session, il n'y a donc rien a falsifier pour viser le
+  compte d'un autre.
+
+  Aucun champ n'est reaffiche apres une erreur : ce sont tous des mots de
+  passe.
+#}
+{% extends "base.html" %}
+
+{% block titre %}Mot de passe{% endblock %}
+
+{% block contenu %}
+<div class="login-box">
+  <h1>Mot de passe</h1>
+  <p class="discret">Compte {{ utilisateur.identifiant }}</p>
+
+  {% if erreur %}
+  <p style="color:var(--c-refus)">{{ erreur }}</p>
+  {% endif %}
+  {% if succes %}
+  <p style="color:var(--c-favorable)">{{ succes }}</p>
+  {% endif %}
+
+  <form method="post" action="/mon-compte/mot-de-passe">
+    <label>Mot de passe actuel</label>
+    <input type="password" name="password_actuel" required autofocus>
+    <label>Nouveau mot de passe</label>
+    <input type="password" name="password" minlength="8" required>
+    <label>Confirmation du nouveau mot de passe</label>
+    <input type="password" name="password_confirm" minlength="8" required>
+    <p class="discret">
+      8 caractères minimum. Aucune procédure de récupération n'existe :
+      notez-le en lieu sûr.
+    </p>
+    <button type="submit" class="principal" style="margin-top:0.8rem;width:100%">
+      Changer le mot de passe
+    </button>
+  </form>
+</div>
+{% endblock %}

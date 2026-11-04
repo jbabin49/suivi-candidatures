@@ -154,6 +154,84 @@ sans attribut `src`, sur aucune page.
 Ces points sont connus, jugés proportionnés à un usage auto-hébergé, et non
 corrigés. Chacun indique comment le durcir.
 
+**Multi-compte local : séparation logique, pas de chiffrement.** En mode auth
+locale, l'application héberge plusieurs comptes sur une même instance. La
+séparation entre eux est **logique** : chaque requête filtre par `user_id`, et
+l'appartenance est revérifiée côté serveur sur chaque accès à une candidature
+ou à un document (un identifiant appartenant à un autre compte renvoie 404, pas
+403, pour ne pas confirmer son existence). Les fichiers téléversés sont rangés
+par compte, dans `uploads/<user_id>/`.
+
+Cette séparation n'est **pas** un cloisonnement cryptographique. **La base
+SQLite n'est pas chiffrée** : quiconque accède au `DATA_DIR` — sur le serveur,
+dans une sauvegarde du volume, ou avec un accès root sur la machine — lit les
+candidatures et les documents de **tous** les comptes, sans mot de passe. Le
+modèle de confiance visé est celui d'un poste familial ou d'un petit groupe qui
+se connaît : les comptes séparent les espaces de travail au quotidien, ils ne
+protègent pas les utilisateurs les uns des autres. *Durcir* : une instance par
+personne, avec son propre `DATA_DIR` et son propre conteneur, est la seule
+réponse réelle si les données doivent être mutuellement opaques.
+
+**Modèle plat : aucun rôle d'administrateur.** Tous les comptes sont égaux. Les
+conséquences, assumées :
+
+- **tout compte connecté peut créer un compte** (`POST /comptes`). Il n'y a
+  personne à qui réserver ce droit ;
+- **tout compte connecté voit la liste des comptes** (identifiant et nom
+  affiché, jamais de hash) ;
+- en revanche, **chacun n'agit que sur le sien**. Le changement de mot de passe
+  (`/mon-compte/mot-de-passe`) ne prend aucune cible en paramètre : il agit sur
+  l'utilisateur résolu depuis la session, il n'y a donc rien à falsifier. La
+  suppression (`POST /comptes/{id}/supprimer`) refuse tout identifiant autre
+  que celui de l'utilisateur courant ;
+- le changement de mot de passe **exige le mot de passe actuel**, vérifié avec
+  `verify_password` avant toute écriture : un cookie de session dérobé ne
+  suffit pas à verrouiller le compte de sa victime ;
+- **le dernier compte n'est pas supprimable.** Le supprimer laisserait une base
+  sans aucun utilisateur, donc une instance que `/bienvenue` rouvrirait au
+  premier visiteur venu.
+
+À la suppression d'un compte, la cascade SQLAlchemy efface ses candidatures,
+contacts, entretiens, documents et profil ; le dossier `uploads/<user_id>/` est
+effacé séparément, la cascade ne connaissant que les lignes. L'ordre est
+volontaire — base d'abord, disque ensuite : un échec d'effacement laisse des
+fichiers orphelins et sans référence, moins gênant que des lignes pointant vers
+des fichiers disparus.
+
+Ces routes sont portées par le routeur local et **n'existent pas en mode
+OIDC**, où la gestion des comptes revient au fournisseur d'identité.
+
+**Création du premier compte sans authentification (`/bienvenue`).** En mode
+auth locale, les routes `GET` et `POST /bienvenue` permettent de créer un
+compte **sans être authentifié**. C'est une fenêtre de configuration, du type
+*installeur web* : elle n'est ouverte que tant que la base ne contient aucun
+utilisateur, et se referme définitivement dès le premier compte créé. Elle
+existe parce que sans elle, un premier lancement sans `ADMIN_EMAIL` /
+`ADMIN_PASSWORD` aboutit à un `/login` sans identifiants possibles et sans
+aucun moyen d'en créer depuis l'interface — situation normale pour la version
+de bureau, qui n'a ni ligne de commande ni `.env`.
+
+Trois propriétés délimitent le risque :
+
+- la condition « aucun utilisateur » est revérifiée **côté serveur juste avant
+  l'insertion**, et pas seulement à l'affichage du formulaire. Un `POST` sur un
+  formulaire chargé avant la création d'un compte par une autre voie (variables
+  `ADMIN_*`, `creer_utilisateur.py`, autre onglet) ne crée rien et redirige
+  vers `/login` ;
+- les routes sont portées par le routeur de `app/auth/local.py`, monté
+  uniquement si `AUTH_MODE=local`. **En mode OIDC, elles n'existent pas** :
+  c'est le fournisseur d'identité qui décide qui a un compte ;
+- une fois un compte créé, les deux routes redirigent vers `/login` sans jamais
+  rien écrire.
+
+La fenêtre résiduelle est donc celle d'une instance déployée et laissée sans
+compte : le premier visiteur deviendrait propriétaire de l'instance. C'est
+cohérent avec le périmètre de l'application — réseau local, ou derrière un
+reverse proxy — et avec la pratique courante des installeurs web. *Durcir* :
+renseigner `ADMIN_EMAIL` / `ADMIN_PASSWORD`, ou créer le compte avec
+`creer_utilisateur.py` **avant** la première exposition réseau, ce qui ferme la
+fenêtre avant qu'elle ne soit atteignable.
+
 **Pas de jeton anti-CSRF.** La protection repose sur l'attribut `SameSite=Lax`
 du cookie de session, désormais posé explicitement, qui empêche le navigateur
 d'envoyer le cookie sur une requête `POST` provenant d'un autre site. C'est une

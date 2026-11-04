@@ -24,11 +24,11 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
-from app.database import init_db
+from app.database import get_db, init_db
 from app.routes import (
     candidatures,
     contacts,
@@ -39,11 +39,11 @@ from app.routes import (
     relances,
 )
 from app.session import get_optional_user
+from app.templating import templates
 
 settings = get_settings()
 
 BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 def resolve_secret_key() -> str:
@@ -73,14 +73,17 @@ def resolve_secret_key() -> str:
 
 def _bootstrap_admin() -> None:
     """
-    En mode local, cree le compte administrateur defini par ADMIN_EMAIL /
-    ADMIN_PASSWORD s'il n'existe encore aucun utilisateur. Sans ces
-    variables, aucun compte n'est cree : utiliser alors le script
+    En mode local, cree le compte initial defini par ADMIN_IDENTIFIANT
+    (ou ADMIN_EMAIL, son ancien nom) et ADMIN_PASSWORD s'il n'existe
+    encore aucun utilisateur. Sans ces variables, aucun compte n'est
+    cree : l'ecran /bienvenue prend alors le relais, ou le script
     creer_utilisateur.py.
     """
     if settings.auth_mode != "local":
         return
-    if not settings.admin_email or not settings.admin_password:
+
+    identifiant = settings.identifiant_initial
+    if not identifiant or not settings.admin_password:
         return
 
     from sqlalchemy import select
@@ -95,8 +98,8 @@ def _bootstrap_admin() -> None:
         if existe is None:
             db.add(
                 User(
-                    email=settings.admin_email,
-                    nom_affichage=settings.admin_email,
+                    identifiant=identifiant,
+                    nom_affichage=identifiant,
                     password_hash=hash_password(settings.admin_password),
                 )
             )
@@ -235,15 +238,32 @@ if settings.auth_mode == "oidc":
 
     app.include_router(oidc.router)
 else:
-    from app.auth import local
+    from app.auth import comptes, local
 
     app.include_router(local.router)
+    # Gestion des comptes locaux : liste, creation, mot de passe,
+    # suppression de son propre compte. Montee ici et non avec les
+    # routes fonctionnelles : en mode OIDC ces routes n'ont pas lieu
+    # d'etre, les comptes appartenant au fournisseur d'identite.
+    app.include_router(comptes.router)
 
     @app.get("/login", response_class=HTMLResponse)
-    def page_login(request: Request, user=Depends(get_optional_user)):
-        """Affiche le formulaire de connexion (ou redirige si deja connecte)."""
+    def page_login(
+        request: Request,
+        user=Depends(get_optional_user),
+        db: Session = Depends(get_db),
+    ):
+        """
+        Affiche le formulaire de connexion (ou redirige si deja connecte).
+
+        Base vide : il n'existe aucun identifiant a saisir, ni aucune
+        route pour en creer depuis l'interface hors /bienvenue. On y
+        renvoie donc, plutot que d'afficher un formulaire inutilisable.
+        """
         if user is not None:
             return RedirectResponse(url="/")
+        if local.aucun_utilisateur(db):
+            return RedirectResponse(url="/bienvenue")
         return templates.TemplateResponse(request, "login.html", {})
 
 

@@ -101,8 +101,15 @@ def get_or_create_user(
 ) -> User:
     """
     Retrouve le compte par son sujet OIDC, ou le cree au premier login
-    (provisionnement automatique). Le sujet est l'identifiant stable ;
-    l'email peut changer cote fournisseur sans casser le rattachement.
+    (provisionnement automatique). Le sujet est l'identifiant stable du
+    rattachement ; l'email peut changer cote fournisseur sans le casser.
+
+    users.identifiant recoit l'email fourni par le fournisseur, qui est
+    l'etiquette la plus lisible dont on dispose. Ce n'est qu'une
+    etiquette : en mode OIDC, aucune connexion ne passe par elle, c'est
+    oidc_subject qui authentifie. Repli sur une valeur derivee du sujet
+    si le fournisseur ne communique pas d'email, la colonne etant NOT
+    NULL et UNIQUE.
     """
     user = db.scalar(select(User).where(User.oidc_subject == subject))
     if user is not None:
@@ -110,7 +117,7 @@ def get_or_create_user(
 
     nom = claims.get("name") or email or subject
     user = User(
-        email=email or f"{subject}@oidc.local",
+        identifiant=email or f"{subject}@oidc.local",
         nom_affichage=nom,
         oidc_subject=subject,
     )
