@@ -13,6 +13,7 @@ Alembic de migrations/versions, appliquees au demarrage par init_db().
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Generator
 from pathlib import Path
 
@@ -26,10 +27,26 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# Fichier de configuration Alembic, a la racine du projet (un niveau
-# au-dessus du paquet app). Chemin absolu : les migrations doivent
-# s'appliquer quel que soit le repertoire courant du processus.
-ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
+# Racine des ressources non-Python (alembic.ini, migrations/).
+#
+# En execution normale : la racine du projet, un niveau au-dessus du
+# paquet app. En executable PyInstaller (sys.frozen), app/ est embarque
+# dans l'archive du binaire et son chemin ne designe plus un dossier
+# reel ; les fichiers de donnees sont extraits dans sys._MEIPASS, qui
+# fait alors office de racine.
+RACINE_RESSOURCES = (
+    Path(getattr(sys, "_MEIPASS", "."))
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent.parent
+).resolve()
+
+# Fichier de configuration Alembic, a la racine des ressources. Chemin
+# absolu : les migrations doivent s'appliquer quel que soit le repertoire
+# courant du processus.
+ALEMBIC_INI = RACINE_RESSOURCES / "alembic.ini"
+
+# Dossier des scripts de migration (script_location).
+MIGRATIONS_DIR = RACINE_RESSOURCES / "migrations"
 
 # Premiere revision Alembic, celle qui decrit le schema tel qu'il etait
 # cree par create_all. Une base anterieure a l'arrivee d'Alembic est
@@ -67,9 +84,14 @@ def _alembic_config() -> Config:
 
     configure_logger a faux : env.py n'applique alors pas la section
     logging de alembic.ini, qui ecraserait les loggers d'uvicorn.
+
+    script_location est reecrit en chemin absolu : alembic le resout
+    sinon relativement au repertoire courant, imprevisible pour une
+    application packagee lancee depuis le Finder ou le menu Demarrer.
     """
     config = Config(str(ALEMBIC_INI))
     config.attributes["configure_logger"] = False
+    config.set_main_option("script_location", str(MIGRATIONS_DIR))
     return config
 
 

@@ -1,0 +1,5 @@
+# Dependances supplementaires pour la version de bureau (desktop.py).
+# A installer EN PLUS de requirements.txt : pip install -r requirements-desktop.txt
+-r requirements.txt
+pywebview==6.2.1
+platformdirs==4.13.3
