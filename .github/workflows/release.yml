@@ -1,0 +1,167 @@
+# Construction et publication de la version de bureau.
+#
+# Deux declencheurs, pour deux usages distincts :
+#
+# - push d'un tag v* (ex. v1.0.0) : construit les binaires, puis les
+#   attache a une GitHub Release creee pour le tag ;
+# - workflow_dispatch (bouton « Run workflow » de l'onglet Actions) :
+#   construit les binaires et s'arrete la. Rien n'est publie, le job de
+#   release ne s'execute pas. Les binaires restent recuperables comme
+#   artefacts du run, pendant la duree de retention du depot. C'est la
+#   facon d'eprouver la chaine de build sans creer de tag ni de release
+#   publique.
+#
+# Le job build est identique dans les deux cas : c'est bien la meme
+# chaine qui est testee.
+#
+# Deux cibles seulement, Windows et macOS. Pas de binaire Linux :
+# l'application y est deja distribuee en image Docker, et s'execute
+# directement depuis les sources (pip install -r requirements-desktop.txt
+# puis python desktop.py). Empaqueter pour Linux imposerait d'embarquer
+# ou d'exiger WebKitGTK, dont le nom de paquet varie d'une distribution
+# et d'une version a l'autre, pour un gain nul face aux deux voies
+# existantes.
+#
+# Les binaires ne sont NI signes NI notarises : aucun secret de
+# signature n'est utilise ici, et aucun certificat de developpeur Apple
+# ou Windows n'est requis pour construire. Consequence a assumer, et
+# documentee dans le README : au premier lancement, macOS (Gatekeeper) et
+# Windows (SmartScreen) affichent un avertissement que l'utilisateur doit
+# contourner explicitement.
+name: Release de bureau
+
+on:
+  push:
+    tags:
+      - "v*"
+  # Declenchement manuel depuis l'onglet Actions. Aucune entree : il n'y
+  # a rien a parametrer, le build ne depend que du contenu de la branche
+  # choisie dans l'interface.
+  workflow_dispatch:
+
+# Les jobs ne font que lire le depot ; seule la publication de la
+# Release ecrit, et le droit est accorde la ou il sert.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Un echec sur un systeme ne doit pas annuler l'autre : il reste
+      # utile de savoir lequel passe.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nom_artefact: SuiviCandidatures-windows
+            chemin: dist/SuiviCandidatures.exe
+          - os: macos-latest
+            nom_artefact: SuiviCandidatures-macos
+            # Le .app, et non l'executable nu egalement produit : c'est
+            # le format qu'on glisse dans Applications, et celui auquel
+            # s'applique le « Ouvrir quand meme » de Gatekeeper.
+            chemin: dist/SuiviCandidatures-macos.zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Meme version que l'image Docker du projet.
+          python-version: "3.12"
+
+      # Aucune dependance systeme a installer : pywebview s'appuie sur le
+      # moteur de rendu du systeme, que Windows (WebView2) et macOS
+      # (WebKit) fournissent tous deux par defaut.
+      - name: Dependances Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-desktop.txt
+          pip install pyinstaller==6.22.3
+
+      - name: Build
+        run: pyinstaller --noconfirm --clean suivi-candidatures.spec
+
+      # ditto plutot que zip : il preserve les liens symboliques et les
+      # attributs etendus du bundle, qu'un zip ordinaire aplatit.
+      - name: Compresser le bundle .app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            dist/SuiviCandidatures.app dist/SuiviCandidatures-macos.zip
+
+      # Televerse dans tous les cas, tag ou declenchement manuel : c'est
+      # par ces artefacts qu'un build manuel se recupere et s'essaie.
+      - name: Artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.nom_artefact }}
+          path: ${{ matrix.chemin }}
+          # Un artefact vide signifie que le build a echoue sans renvoyer
+          # d'erreur : mieux vaut le signaler que publier du vide.
+          if-no-files-found: error
+
+  release:
+    name: Publier la Release
+    needs: build
+    # Runner hote de ce job, et non une cible de build : il ne compile
+    # rien, il recupere les artefacts des deux jobs de build et cree la
+    # Release. Le runner Linux est simplement le moins cher et le plus
+    # rapide a demarrer pour cela.
+    runs-on: ubuntu-latest
+    # Garde-fou : ne publier QUE sur un tag. Un workflow_dispatch laisse
+    # ce job entierement de cote (le run apparait alors avec le job
+    # « Publier la Release » marque comme ignore), donc aucune Release
+    # publique n'est creee par un build manuel, meme lance par erreur
+    # depuis une branche nommee comme un tag.
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      # Necessaire pour creer la Release et y attacher les binaires.
+      contents: write
+    steps:
+      - name: Recuperer les artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artefacts
+
+      # Les artefacts arrivent chacun dans son sous-dossier ; on les
+      # renomme a plat, avec un nom qui identifie le systeme cible.
+      - name: Rassembler les binaires
+        run: |
+          mkdir -p release
+          mv artefacts/SuiviCandidatures-macos/SuiviCandidatures-macos.zip \
+             release/SuiviCandidatures-macos.zip
+          mv artefacts/SuiviCandidatures-windows/SuiviCandidatures.exe \
+             release/SuiviCandidatures-windows.exe
+          ls -l release
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          # Brouillon a faux, prerelease a faux : un tag v* pousse est
+          # une release assumee.
+          draft: false
+          prerelease: false
+          body: |
+            Executables de bureau pour le tag ${{ github.ref_name }}.
+
+            **Ces binaires ne sont pas signes.** Au premier lancement :
+
+            - **macOS (Mac Apple Silicon, M1 et suivants — pas Intel)** :
+              decompresser le .zip, glisser `SuiviCandidatures.app` dans
+              Applications. Le double-clic est bloque par Gatekeeper :
+              ouvrir Reglages Systeme > Confidentialite et securite, puis
+              « Ouvrir quand meme » dans l'alerte en bas de la section.
+              Depuis macOS Sequoia, le clic droit > Ouvrir ne suffit plus.
+            - **Windows** : SmartScreen affiche « Windows a protege votre
+              ordinateur ». Cliquer sur « Informations complementaires »,
+              puis « Executer quand meme ».
+
+            **Sous Linux**, aucun executable n'est publie : utiliser
+            l'image Docker (`docker compose up -d`), ou lancer la version
+            de bureau depuis les sources
+            (`pip install -r requirements-desktop.txt` puis
+            `python desktop.py`).
