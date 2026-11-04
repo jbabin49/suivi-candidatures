@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
-from app.schemas import PremierCompte
+from app.schemas import CompteCreate
 from app.session import login_user, logout_user
 
 router = APIRouter(tags=["auth"])
@@ -48,13 +48,13 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def authenticate(db: Session, email: str, password: str) -> User | None:
+def authenticate(db: Session, identifiant: str, password: str) -> User | None:
     """
     Verifie les identifiants. Retourne l'utilisateur si valides, sinon
     None. Les comptes sans mot de passe (comptes OIDC) ne peuvent pas se
     connecter par cette voie.
     """
-    user = db.scalar(select(User).where(User.email == email))
+    user = db.scalar(select(User).where(User.identifiant == identifiant))
     if user is None or user.password_hash is None:
         return None
     if not verify_password(password, user.password_hash):
@@ -65,12 +65,12 @@ def authenticate(db: Session, email: str, password: str) -> User | None:
 @router.post("/login")
 def login(
     request: Request,
-    email: str = Form(...),
+    identifiant: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
     """Traite le formulaire de connexion."""
-    user = authenticate(db, email, password)
+    user = authenticate(db, identifiant.strip(), password)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -117,7 +117,7 @@ def page_bienvenue(request: Request, db: Session = Depends(get_db)):
 @router.post("/bienvenue", response_class=HTMLResponse)
 def creer_premier_compte(
     request: Request,
-    email: str = Form(""),
+    identifiant: str = Form(""),
     nom_affichage: str = Form(""),
     password: str = Form(""),
     password_confirm: str = Form(""),
@@ -137,8 +137,8 @@ def creer_premier_compte(
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
     try:
-        donnees = PremierCompte(
-            email=email,
+        donnees = CompteCreate(
+            identifiant=identifiant,
             nom_affichage=nom_affichage,
             password=password,
             password_confirm=password_confirm,
@@ -150,19 +150,36 @@ def creer_premier_compte(
             "bienvenue.html",
             {
                 "erreur": _premier_message(exc),
-                "email": email,
+                "identifiant": identifiant,
                 "nom_affichage": nom_affichage,
             },
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
+    user = creer_compte(db, donnees)
+    login_user(request, user)
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
+
+def identifiant_deja_pris(db: Session, identifiant: str) -> bool:
+    """Vraie si un compte porte deja cet identifiant."""
+    return (
+        db.scalar(select(User.id).where(User.identifiant == identifiant))
+        is not None
+    )
+
+
+def creer_compte(db: Session, donnees: CompteCreate) -> User:
+    """
+    Insere un compte local a partir de donnees deja validees. Ne verifie
+    pas l'unicite de l'identifiant : c'est a l'appelant de le faire, le
+    message d'erreur n'etant pas le meme selon le formulaire d'origine.
+    """
     user = User(
-        email=donnees.email,
-        nom_affichage=donnees.nom_affichage,
+        identifiant=donnees.identifiant,
+        nom_affichage=donnees.nom_affichage_effectif,
         password_hash=hash_password(donnees.password),
     )
     db.add(user)
     db.commit()
-
-    login_user(request, user)
-    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    return user

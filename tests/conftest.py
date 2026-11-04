@@ -31,10 +31,10 @@ def client() -> TestClient:
     """Client HTTP connecte avec un utilisateur de test."""
     init_db()
     db = SessionLocal()
-    if db.query(User).filter_by(email="test@local").first() is None:
+    if db.query(User).filter_by(identifiant="test").first() is None:
         db.add(
             User(
-                email="test@local",
+                identifiant="test",
                 nom_affichage="Test",
                 password_hash=hash_password("motdepasse"),
             )
@@ -43,5 +43,5 @@ def client() -> TestClient:
     db.close()
 
     c = TestClient(app, follow_redirects=False)
-    c.post("/login", data={"email": "test@local", "password": "motdepasse"})
+    c.post("/login", data={"identifiant": "test", "password": "motdepasse"})
     return c

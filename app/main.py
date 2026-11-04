@@ -74,14 +74,17 @@ def resolve_secret_key() -> str:
 
 def _bootstrap_admin() -> None:
     """
-    En mode local, cree le compte administrateur defini par ADMIN_EMAIL /
-    ADMIN_PASSWORD s'il n'existe encore aucun utilisateur. Sans ces
-    variables, aucun compte n'est cree : utiliser alors le script
+    En mode local, cree le compte initial defini par ADMIN_IDENTIFIANT
+    (ou ADMIN_EMAIL, son ancien nom) et ADMIN_PASSWORD s'il n'existe
+    encore aucun utilisateur. Sans ces variables, aucun compte n'est
+    cree : l'ecran /bienvenue prend alors le relais, ou le script
     creer_utilisateur.py.
     """
     if settings.auth_mode != "local":
         return
-    if not settings.admin_email or not settings.admin_password:
+
+    identifiant = settings.identifiant_initial
+    if not identifiant or not settings.admin_password:
         return
 
     from sqlalchemy import select
@@ -96,8 +99,8 @@ def _bootstrap_admin() -> None:
         if existe is None:
             db.add(
                 User(
-                    email=settings.admin_email,
-                    nom_affichage=settings.admin_email,
+                    identifiant=identifiant,
+                    nom_affichage=identifiant,
                     password_hash=hash_password(settings.admin_password),
                 )
             )

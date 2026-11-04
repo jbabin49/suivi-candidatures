@@ -71,12 +71,22 @@ class User(Base):
     Compte utilisateur. Supporte l'auth locale (password_hash renseigne)
     ou l'auth externe OIDC (oidc_subject renseigne). Un seul des deux
     selon le mode d'authentification actif.
+
+    L'identifiant de connexion est une chaine libre, pas une adresse
+    email : l'application n'envoie aucun courriel et n'a aucune
+    procedure de recuperation, exiger un email serait une friction sans
+    contrepartie. "julien" est un identifiant valide.
+
+    A ne pas confondre avec Profil.email_candidat, qui est l'adresse
+    figurant sur les candidatures et n'a aucun role d'authentification.
     """
 
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    identifiant: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False
+    )
     nom_affichage: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Auth locale : hash argon2 du mot de passe. Nul si compte OIDC.

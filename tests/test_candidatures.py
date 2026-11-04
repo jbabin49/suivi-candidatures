@@ -48,10 +48,10 @@ def test_isolation_entre_utilisateurs(client):
     cid = _creer(client)
 
     db = SessionLocal()
-    if db.query(User).filter_by(email="autre@local").first() is None:
+    if db.query(User).filter_by(identifiant="autre").first() is None:
         db.add(
             User(
-                email="autre@local",
+                identifiant="autre",
                 nom_affichage="Autre",
                 password_hash=hash_password("x"),
             )
@@ -60,6 +60,6 @@ def test_isolation_entre_utilisateurs(client):
     db.close()
 
     autre = TestClient(app, follow_redirects=False)
-    autre.post("/login", data={"email": "autre@local", "password": "x"})
+    autre.post("/login", data={"identifiant": "autre", "password": "x"})
     # La candidature d'un autre utilisateur est invisible (404, pas 403).
     assert autre.get(f"/candidatures/{cid}").status_code == 404

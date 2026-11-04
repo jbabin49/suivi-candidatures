@@ -40,7 +40,7 @@ from app.models import (  # noqa: E402
     User,
 )
 
-EMAIL_DEMO = "demo@exemple.fr"
+IDENTIFIANT_DEMO = "demo"
 MDP_DEMO = "demo"
 
 
@@ -48,15 +48,15 @@ def main() -> None:
     init_db()
     db = SessionLocal()
     try:
-        if db.query(User).filter_by(email=EMAIL_DEMO).first() is not None:
+        if db.query(User).filter_by(identifiant=IDENTIFIANT_DEMO).first() is not None:
             print(
-                f"L'utilisateur {EMAIL_DEMO} existe deja. "
+                f"L'utilisateur {IDENTIFIANT_DEMO} existe deja. "
                 "Lance ce script sur une base vierge."
             )
             return
 
         user = User(
-            email=EMAIL_DEMO,
+            identifiant=IDENTIFIANT_DEMO,
             nom_affichage="Compte de démonstration",
             password_hash=hash_password(MDP_DEMO),
         )
@@ -153,7 +153,7 @@ def main() -> None:
 
         db.commit()
         print("Jeu de démonstration créé.")
-        print(f"  Connexion : {EMAIL_DEMO} / {MDP_DEMO}")
+        print(f"  Connexion : {IDENTIFIANT_DEMO} / {MDP_DEMO}")
         print(f"  {len(objets)} candidatures, dont 1 complète (Novatech).")
     finally:
         db.close()

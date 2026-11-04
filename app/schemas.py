@@ -10,7 +10,6 @@ d'exposer ou d'accepter des champs non voulus (ex. id, user_id).
 from __future__ import annotations
 
 import datetime as dt
-import re
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -147,71 +146,28 @@ class DocumentRead(BaseModel):
     uploaded_at: dt.datetime
 
 
-# Premier compte (ecran de premiere connexion, mode auth locale)
+# Comptes (ecran de premiere connexion et gestion des comptes locaux)
 
-# Validation de forme de l'adresse email.
-#
-# C'est la regle "valid e-mail address" de la specification HTML du
-# WHATWG, reprise telle quelle : exactement celle qu'applique
-# <input type="email"> dans le navigateur. Volontairement ni une regex
-# maison, ni pydantic EmailStr.
-#
-#   - pas de regex maison : plus stricte que le navigateur, elle ferait
-#     passer la validation cote client puis echouer cote serveur, sans
-#     explication comprehensible pour l'utilisateur ; plus laxiste, elle
-#     accepterait ce que le formulaire a deja refuse, donc du code mort ;
-#   - pas de EmailStr : cela ajouterait la dependance email-validator
-#     pour un unique champ de formulaire.
-#
-# A noter, c'est le comportement du navigateur et non celui de la RFC
-# 5322 : le point n'est pas exige dans le domaine, donc vous@nas ou
-# admin@localhost sont acceptes. C'est voulu pour une application
-# auto-hebergee sur reseau local.
-#
-# Source : https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address
-_FORME_EMAIL = re.compile(
-    r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+"
-    r"@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
-    r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
-)
+# Longueur maximale de l'identifiant, alignee sur la colonne
+# users.identifiant (String(255)) : valider ici evite une erreur
+# d'integrite SQLite remontee en 500.
+LONGUEUR_MAX_IDENTIFIANT = 255
 
-# L'application n'offre aucune route de recuperation ni de changement de
-# mot de passe : un mot de passe mal saisi enferme l'utilisateur hors de
-# ses donnees. D'ou la confirmation obligatoire ci-dessous.
+# L'application n'offre aucune procedure de recuperation de mot de
+# passe : un mot de passe mal saisi enferme l'utilisateur hors de ses
+# donnees. D'ou la confirmation obligatoire partout ou un mot de passe
+# est choisi.
 LONGUEUR_MINIMALE_MOT_DE_PASSE = 8
 
 
-class PremierCompte(BaseModel):
+class _ChoixMotDePasse(BaseModel):
     """
-    Donnees du formulaire de creation du premier compte (/bienvenue).
-
-    Les messages d'erreur sont rediges en francais : ils sont reaffiches
-    tels quels a l'utilisateur par la route, et non journalises.
+    Partie commune a tous les formulaires qui font choisir un mot de
+    passe : longueur minimale et confirmation identique.
     """
 
-    email: str
-    nom_affichage: str
     password: str
     password_confirm: str
-
-    @field_validator("email")
-    @classmethod
-    def _valider_email(cls, valeur: str) -> str:
-        valeur = valeur.strip()
-        # fullmatch et non match : en Python, "$" tolere un retour a la
-        # ligne final. Le strip() ci-dessus l'enleve deja, fullmatch
-        # n'est donc qu'une ceinture de securite si ce strip disparait.
-        if not _FORME_EMAIL.fullmatch(valeur):
-            raise ValueError("Adresse email invalide.")
-        return valeur
-
-    @field_validator("nom_affichage")
-    @classmethod
-    def _valider_nom(cls, valeur: str) -> str:
-        valeur = valeur.strip()
-        if not valeur:
-            raise ValueError("Le nom affiche est obligatoire.")
-        return valeur
 
     @field_validator("password")
     @classmethod
@@ -224,7 +180,64 @@ class PremierCompte(BaseModel):
         return valeur
 
     @model_validator(mode="after")
-    def _valider_confirmation(self) -> "PremierCompte":
+    def _valider_confirmation(self) -> "_ChoixMotDePasse":
         if self.password != self.password_confirm:
             raise ValueError("Les deux mots de passe ne correspondent pas.")
         return self
+
+
+class CompteCreate(_ChoixMotDePasse):
+    """
+    Donnees de creation d'un compte local : premier compte (/bienvenue)
+    comme comptes suivants (/comptes).
+
+    L'identifiant est une chaine libre, volontairement sans contrainte
+    de format : ni email impose, ni jeu de caracteres restreint. Il
+    n'est ni envoye par courriel, ni interpole dans une requete (toutes
+    passent par SQLAlchemy), ni rendu sans echappement (autoescape
+    Jinja2). Seules les bornes qui protegent la base sont verifiees.
+
+    Les messages d'erreur sont rediges en francais : ils sont reaffiches
+    tels quels a l'utilisateur par la route, et non journalises.
+    """
+
+    identifiant: str
+    # Facultatif : l'utilisateur peut ne saisir qu'un identifiant et un
+    # mot de passe. Le defaut est applique par nom_affichage_effectif.
+    nom_affichage: str = ""
+
+    @field_validator("identifiant")
+    @classmethod
+    def _valider_identifiant(cls, valeur: str) -> str:
+        valeur = valeur.strip()
+        if not valeur:
+            raise ValueError("L'identifiant est obligatoire.")
+        if len(valeur) > LONGUEUR_MAX_IDENTIFIANT:
+            raise ValueError(
+                "L'identifiant ne peut pas depasser "
+                f"{LONGUEUR_MAX_IDENTIFIANT} caracteres."
+            )
+        return valeur
+
+    @field_validator("nom_affichage")
+    @classmethod
+    def _valider_nom(cls, valeur: str) -> str:
+        return valeur.strip()
+
+    @property
+    def nom_affichage_effectif(self) -> str:
+        """
+        Nom a enregistrer : celui saisi, sinon l'identifiant. Permet de
+        creer un compte avec le seul couple identifiant / mot de passe.
+        """
+        return self.nom_affichage or self.identifiant
+
+
+class MotDePasseChange(_ChoixMotDePasse):
+    """
+    Changement de son propre mot de passe. Le mot de passe actuel est
+    verifie par la route (verify_password) et non ici : ce modele ne
+    valide que la forme du nouveau.
+    """
+
+    password_actuel: str

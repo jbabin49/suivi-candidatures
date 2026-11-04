@@ -15,7 +15,7 @@ from app.auth.local import hash_password, verify_password
 from app.database import SessionLocal, init_db
 from app.main import app
 from app.models import User
-from app.schemas import PremierCompte
+from app.schemas import CompteCreate
 
 
 def test_hash_et_verification():
@@ -32,7 +32,7 @@ def test_login_identifiants_invalides(client):
     from app.main import app
 
     c = TestClient(app, follow_redirects=False)
-    r = c.post("/login", data={"email": "test@local", "password": "FAUX"})
+    r = c.post("/login", data={"identifiant": "test", "password": "FAUX"})
     assert r.status_code == 401
 
 
@@ -73,8 +73,16 @@ def _nombre_utilisateurs() -> int:
         db.close()
 
 
+def _identifiants() -> list[str]:
+    db = SessionLocal()
+    try:
+        return sorted(u.identifiant for u in db.query(User).all())
+    finally:
+        db.close()
+
+
 FORMULAIRE_VALIDE = {
-    "email": "premier@local",
+    "identifiant": "premier",
     "nom_affichage": "Premier compte",
     "password": "motdepasse",
     "password_confirm": "motdepasse",
@@ -125,7 +133,7 @@ def test_bienvenue_refuse_un_second_compte(client):
     assert avant >= 1
 
     anonyme = TestClient(app, follow_redirects=False)
-    r = anonyme.post("/bienvenue", data={**FORMULAIRE_VALIDE, "email": "second@local"})
+    r = anonyme.post("/bienvenue", data={**FORMULAIRE_VALIDE, "identifiant": "second"})
     assert r.status_code == 303
     assert r.headers["location"] == "/login"
     assert _nombre_utilisateurs() == avant
@@ -151,17 +159,36 @@ def test_bienvenue_refuse_un_mot_de_passe_trop_court(client_base_vide):
     assert _nombre_utilisateurs() == 0
 
 
-def test_bienvenue_refuse_un_email_invalide(client_base_vide):
-    # Sans arobase : rejete cote serveur comme cote navigateur.
-    r = client_base_vide.post("/bienvenue", data={**FORMULAIRE_VALIDE, "email": "pas-un-email"})
+def test_bienvenue_refuse_un_identifiant_vide(client_base_vide):
+    r = client_base_vide.post("/bienvenue", data={**FORMULAIRE_VALIDE, "identifiant": "   "})
     assert r.status_code == 400
     assert _nombre_utilisateurs() == 0
 
 
-def test_bienvenue_refuse_un_nom_affichage_vide(client_base_vide):
-    r = client_base_vide.post("/bienvenue", data={**FORMULAIRE_VALIDE, "nom_affichage": "   "})
-    assert r.status_code == 400
-    assert _nombre_utilisateurs() == 0
+def test_bienvenue_accepte_un_identifiant_non_email(client_base_vide):
+    """
+    Tout l'objet du passage de l'email a l'identifiant libre : un simple
+    nom doit suffire.
+    """
+    r = client_base_vide.post("/bienvenue", data={**FORMULAIRE_VALIDE, "identifiant": "julien"})
+    assert r.status_code == 303
+    assert _identifiants() == ["julien"]
+
+
+def test_bienvenue_nom_affichage_facultatif(client_base_vide):
+    """Nom affiche vide : l'identifiant est repris comme nom."""
+    r = client_base_vide.post(
+        "/bienvenue",
+        data={**FORMULAIRE_VALIDE, "identifiant": "julien", "nom_affichage": ""},
+    )
+    assert r.status_code == 303
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(identifiant="julien").one()
+        assert user.nom_affichage == "julien"
+    finally:
+        db.close()
 
 
 def test_bienvenue_reaffiche_la_saisie_sans_les_mots_de_passe(client_base_vide):
@@ -170,81 +197,104 @@ def test_bienvenue_reaffiche_la_saisie_sans_les_mots_de_passe(client_base_vide):
         data={**FORMULAIRE_VALIDE, "password_confirm": "autrechose"},
     )
     assert r.status_code == 400
-    assert 'value="premier@local"' in r.text
+    assert 'value="premier"' in r.text
     assert 'value="Premier compte"' in r.text
     # Les mots de passe ne repartent jamais vers le navigateur.
     assert "motdepasse" not in r.text
     assert "autrechose" not in r.text
 
 
-# Regle de validation de l'adresse email
+# Regle de validation de l'identifiant
+#
+# Chaine libre : aucun format impose, contrairement a l'ancien identifiant
+# qui devait etre une adresse email. Seules les bornes qui protegent la
+# base sont verifiees.
 
 
 @pytest.mark.parametrize(
-    "adresse",
+    "valeur",
     [
-        "vous@example.com",
-        # Pas de point exige dans le domaine : le navigateur l'accepte,
-        # et c'est courant sur un reseau local.
-        "premier@local",
-        "admin@localhost",
-        "vous@nas",
-        # Caracteres speciaux autorises par le WHATWG dans la partie locale.
-        "pre.nom+etiquette@example.co.uk",
-        "a!#$%&'*+-/=?^_`{|}~b@example.com",
-        # Tiret autorise a l'interieur d'un label de domaine.
-        "vous@mon-serveur.example",
+        "julien",
+        "j",
+        "vous@example.com",  # une adresse reste un identifiant valide
+        "Jean-Luc Picard",  # espaces et ponctuation admis
+        "utilisateur_42",
+        "x" * 255,  # borne haute exacte
     ],
 )
-def test_email_accepte(adresse):
-    assert PremierCompte(
-        email=adresse,
-        nom_affichage="Nom",
+def test_identifiant_accepte(valeur):
+    assert CompteCreate(
+        identifiant=valeur,
         password="motdepasse",
         password_confirm="motdepasse",
-    ).email == adresse
+    ).identifiant == valeur
 
 
 @pytest.mark.parametrize(
-    "adresse",
+    "valeur",
     [
         "",
-        "pas-un-email",  # pas d'arobase
-        "@example.com",  # partie locale vide
-        "vous@",  # domaine vide
-        "vous@@example.com",  # deux arobases
-        "vous @example.com",  # espace dans la partie locale
-        "vous@exa mple.com",  # espace dans le domaine
-        "vous@-example.com",  # label de domaine commencant par un tiret
-        "vous@example-.com",  # label de domaine finissant par un tiret
-        "vous@exa_mple.com",  # souligne interdit dans le domaine
-        "vous@example..com",  # label vide
-        "vous@exa\nmple.com",  # retour a la ligne interne
+        "   ",  # vide apres trim
+        "\t\n",
+        "x" * 256,  # depasse la longueur de la colonne
     ],
 )
-def test_email_refuse(adresse):
+def test_identifiant_refuse(valeur):
     with pytest.raises(ValidationError):
-        PremierCompte(
-            email=adresse,
-            nom_affichage="Nom",
+        CompteCreate(
+            identifiant=valeur,
             password="motdepasse",
             password_confirm="motdepasse",
         )
 
 
-def test_email_est_trimme_avant_validation():
-    """
-    Les espaces autour de la saisie sont retires, pas refuses : un
-    copier-coller depuis un client mail traine souvent une espace.
-    """
-    donnees = PremierCompte(
-        email="  vous@example.com \n",
-        nom_affichage="  Nom  ",
+def test_identifiant_est_trimme():
+    donnees = CompteCreate(
+        identifiant="  julien  ",
+        nom_affichage="  Julien  ",
         password="motdepasse",
         password_confirm="motdepasse",
     )
-    assert donnees.email == "vous@example.com"
-    assert donnees.nom_affichage == "Nom"
+    assert donnees.identifiant == "julien"
+    assert donnees.nom_affichage == "Julien"
+
+
+def test_nom_affichage_effectif_reprend_l_identifiant():
+    donnees = CompteCreate(
+        identifiant="julien",
+        password="motdepasse",
+        password_confirm="motdepasse",
+    )
+    assert donnees.nom_affichage_effectif == "julien"
+
+
+def test_login_avec_un_identifiant_non_email(client_base_vide):
+    """
+    Bout en bout : creation d'un compte "julien", deconnexion, puis
+    reconnexion avec ce meme identifiant non-email.
+    """
+    client_base_vide.post(
+        "/bienvenue", data={**FORMULAIRE_VALIDE, "identifiant": "julien"}
+    )
+
+    anonyme = TestClient(app, follow_redirects=False)
+    r = anonyme.post("/login", data={"identifiant": "julien", "password": "motdepasse"})
+    assert r.status_code == 303
+    assert r.headers["location"] == "/"
+    assert anonyme.get("/").status_code == 200
+
+
+def test_login_est_trimme(client_base_vide):
+    """Une espace collee avant l'identifiant ne doit pas bloquer l'entree."""
+    client_base_vide.post(
+        "/bienvenue", data={**FORMULAIRE_VALIDE, "identifiant": "julien"}
+    )
+
+    anonyme = TestClient(app, follow_redirects=False)
+    r = anonyme.post(
+        "/login", data={"identifiant": "  julien  ", "password": "motdepasse"}
+    )
+    assert r.status_code == 303
 
 
 def test_bienvenue_echappe_la_saisie_reaffichee(client_base_vide):
@@ -256,7 +306,7 @@ def test_bienvenue_echappe_la_saisie_reaffichee(client_base_vide):
     hostile = '"><script>alert(1)</script>'
     r = client_base_vide.post(
         "/bienvenue",
-        data={**FORMULAIRE_VALIDE, "email": "x", "nom_affichage": hostile},
+        data={**FORMULAIRE_VALIDE, "identifiant": hostile, "password": "court"},
     )
     assert r.status_code == 400
     # La balise ne ressort jamais telle quelle, et l'attribut n'est pas

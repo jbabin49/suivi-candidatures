@@ -84,13 +84,13 @@ Démarche de sécurité : voir [SECURITE.md](SECURITE.md).
 
 ```bash
 cp .env.example .env
-# Renseigner ADMIN_EMAIL et ADMIN_PASSWORD dans .env pour créer le premier compte
+# Facultatif : renseigner ADMIN_IDENTIFIANT et ADMIN_PASSWORD dans .env
 docker compose up -d
 ```
 
 L'application est disponible sur http://localhost:8000.
 
-Le compte administrateur défini par `ADMIN_EMAIL` / `ADMIN_PASSWORD` est créé
+Le compte défini par `ADMIN_IDENTIFIANT` / `ADMIN_PASSWORD` est créé
 automatiquement au premier démarrage. Ces variables sont facultatives : si vous
 les laissez vides, l'application affiche un écran **Bienvenue** à la première
 visite, qui crée le premier compte depuis l'interface. Cet écran disparaît dès
@@ -99,7 +99,7 @@ qu'un compte existe (voir [SECURITE.md](SECURITE.md)).
 Pour créer un compte supplémentaire ensuite :
 
 ```bash
-docker compose exec app python creer_utilisateur.py <email> "<Nom affiché>"
+docker compose exec app python creer_utilisateur.py <identifiant> "<Nom affiché>"
 ```
 
 ## Déploiement avec SSO (OIDC)
@@ -133,7 +133,7 @@ Toute la configuration passe par le fichier `.env` (voir `.env.example`) :
 |---|---|---|
 | `AUTH_MODE` | `local` ou `oidc` | `local` |
 | `ENABLE_DOCS` | Expose les pages de documentation générées par FastAPI, `/docs`, `/redoc` et `/openapi.json` (sans authentification) | `false` |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Compte créé au premier démarrage (mode local) | vide |
+| `ADMIN_IDENTIFIANT` / `ADMIN_PASSWORD` | Compte créé au premier démarrage (mode local) ; `ADMIN_EMAIL` reste accepté comme ancien nom | vide |
 | `SECRET_KEY` | Clé de session ; `change-me` = génération auto persistée | `change-me` |
 | `SESSION_COOKIE_SECURE` | Drapeau `Secure` du cookie de session (à activer en HTTPS) | `false` |
 | `SESSION_MAX_AGE` | Durée de vie d'une session, en secondes | `43200` (12 h) |
@@ -243,7 +243,7 @@ conteneur sur votre compte, en ajoutant au service `app` du fichier Compose :
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python creer_utilisateur.py vous@example.com "Votre nom"
+python creer_utilisateur.py julien "Votre nom"
 uvicorn app.main:app --reload
 ```
 

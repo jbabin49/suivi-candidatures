@@ -16,10 +16,12 @@
   <p style="color:var(--c-refus)">{{ erreur }}</p>
   {% endif %}
   <form method="post" action="/bienvenue">
-    <label>Email</label>
-    <input type="email" name="email" value="{{ email | default('') }}" required autofocus>
-    <label>Nom affiché</label>
-    <input type="text" name="nom_affichage" value="{{ nom_affichage | default('') }}" required>
+    <label>Identifiant</label>
+    <input type="text" name="identifiant" value="{{ identifiant | default('') }}" required autofocus>
+    {# Nom affiche facultatif : a defaut, l'identifiant est repris, pour
+       qu'un identifiant et un mot de passe suffisent a demarrer. #}
+    <label>Nom affiché <span class="discret">(facultatif)</span></label>
+    <input type="text" name="nom_affichage" value="{{ nom_affichage | default('') }}">
     <label>Mot de passe</label>
     <input type="password" name="password" minlength="8" required>
     <label>Confirmation du mot de passe</label>
