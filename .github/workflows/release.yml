@@ -37,6 +37,8 @@ on:
   # Declenchement manuel depuis l'onglet Actions. Aucune entree : il n'y
   # a rien a parametrer, le build ne depend que du contenu de la branche
   # choisie dans l'interface.
+    branches:
+      - "feat/desktop"   # TEMPORAIRE : pour tester le build avant le merge
   workflow_dispatch:
 
 # Les jobs ne font que lire le depot ; seule la publication de la
