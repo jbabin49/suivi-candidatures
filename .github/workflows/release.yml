@@ -86,6 +86,77 @@ jobs:
       - name: Build
         run: pyinstaller --noconfirm --clean suivi-candidatures.spec
 
+      # Le build reussit tant que PyInstaller trouve ses imports ; il ne
+      # dit rien de ce qui se passe au lancement. Ces deux etapes font
+      # tourner le binaire GELE (et non python desktop.py) en mode
+      # smoke-test : demarrage d'uvicorn, /healthz, et migration Alembic
+      # appliquee depuis migrations/ extrait dans _MEIPASS. C'est le seul
+      # endroit ou la resolution des ressources empaquetees est
+      # reellement eprouvee. La fenetre pywebview reste hors du test :
+      # aucun runner n'a d'affichage, SMOKE_TEST=1 sort avant de la
+      # creer.
+      #
+      # DATA_DIR vers un dossier temporaire du runner : jamais le dossier
+      # utilisateur de l'OS, et jamais dans dist/, pour ne pas polluer
+      # l'artefact televerse juste apres.
+      #
+      # Une etape par systeme : les binaires produits n'ont ni le meme
+      # chemin ni la meme facon d'etre attendus.
+      - name: Smoke-test du bundle gele (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $donnees = Join-Path $env:RUNNER_TEMP "smoke-data"
+          $env:SMOKE_TEST = "1"
+          $env:DATA_DIR = $donnees
+          # L'executable est construit en mode fenetre (console a faux),
+          # donc du sous-systeme GUI : lance tel quel, cmd/pwsh rend la
+          # main aussitot sans attendre sa fin et $LASTEXITCODE ne veut
+          # rien dire. Start-Process -PassThru donne l'objet process, le
+          # seul moyen d'attendre vraiment et de lire son code de sortie.
+          $process = Start-Process -FilePath "dist\SuiviCandidatures.exe" -PassThru
+          # Delai de garde largement au-dessus des 30 s d'attente de
+          # /healthz : si le binaire se bloquait malgre tout, le job
+          # echoue ici au lieu de consommer son quota entier.
+          if (-not $process.WaitForExit(180000)) {
+            Stop-Process -Id $process.Id -Force
+            throw "Le binaire ne s'est pas termine dans le delai imparti."
+          }
+          # Sans console, le binaire n'a pas de stderr : ses messages ne
+          # sont lisibles que dans ce journal.
+          $journal = Join-Path $donnees "smoke-test.log"
+          if (Test-Path $journal) { Get-Content $journal }
+          if ($process.ExitCode -ne 0) {
+            throw "Smoke-test en echec, code $($process.ExitCode)."
+          }
+
+      - name: Smoke-test du bundle gele (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Le .app, pas l'executable nu egalement produit dans dist/ :
+          # c'est le bundle qui est publie, donc celui qu'il faut
+          # eprouver. Son binaire interne est appele directement, et non
+          # par « open », qui rend la main sans transmettre le code de
+          # sortie.
+          binaire="dist/SuiviCandidatures.app/Contents/MacOS/SuiviCandidatures"
+          if [ ! -x "$binaire" ]; then
+            echo "Binaire introuvable dans le bundle : $binaire" >&2
+            ls -R dist >&2
+            exit 1
+          fi
+          donnees="$RUNNER_TEMP/smoke-data"
+          code=0
+          SMOKE_TEST=1 DATA_DIR="$donnees" "$binaire" || code=$?
+          if [ -f "$donnees/smoke-test.log" ]; then
+            cat "$donnees/smoke-test.log"
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "Smoke-test en echec, code $code." >&2
+            exit 1
+          fi
+
       # ditto plutot que zip : il preserve les liens symboliques et les
       # attributs etendus du bundle, qu'un zip ordinaire aplatit.
       - name: Compresser le bundle .app (macOS)
