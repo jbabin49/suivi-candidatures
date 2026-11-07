@@ -14,6 +14,12 @@ interpreteur vierge, donc d'une configuration vraiment redirigee.
 webview n'est jamais importe : la CI n'a pas d'affichage. C'est tout
 l'interet d'avoir garde l'import du backend graphique dans main() et non
 en tete de module.
+
+Le second test couvre le mode smoke-test (SMOKE_TEST=1), celui que la CI
+execute sur le binaire gele : il lance desktop.py en entier, point
+d'entree compris, et verifie qu'il sort 0 sans fenetre. Ici depuis les
+sources, ce qui n'eprouve que le chemin logique ; l'empaquetage lui-meme
+ne peut se verifier que sur le binaire, donc en CI.
 """
 
 from __future__ import annotations
@@ -91,3 +97,47 @@ def test_demarrage_headless_avec_data_dir_redirige():
         # La base est bien dans le DATA_DIR redirige, et nulle part ailleurs.
         assert (Path(dossier) / "candidatures.db").exists()
         assert (Path(dossier) / "uploads").is_dir()
+
+
+def test_mode_smoke_sort_zero_et_confirme_la_migration():
+    """
+    SMOKE_TEST=1 : desktop.py va jusqu'au bout de son parcours de
+    demarrage sans fenetre, et sort 0 en ayant confirme la migration.
+
+    Le module webview est rendu introuvable (PYTHONPATH pointe sur un
+    dossier contenant un webview.py qui leve a l'import) : si le mode
+    smoke tentait de l'importer, le test echouerait. C'est la garantie
+    que le mode reste utilisable sur un runner sans affichage.
+    """
+    with tempfile.TemporaryDirectory(prefix="candidatures-smoke-") as dossier:
+        piege = Path(dossier) / "piege"
+        piege.mkdir()
+        (piege / "webview.py").write_text(
+            'raise AssertionError("le mode smoke ne doit pas importer webview")',
+            encoding="utf-8",
+        )
+        donnees = Path(dossier) / "donnees"
+
+        resultat = subprocess.run(
+            [sys.executable, "desktop.py"],
+            cwd=RACINE,
+            env={
+                **os.environ,
+                "SMOKE_TEST": "1",
+                "DATA_DIR": str(donnees),
+                "AUTH_MODE": "local",
+                # Le piege d'abord : il doit masquer un vrai pywebview
+                # installe sur le poste.
+                "PYTHONPATH": os.pathsep.join([str(piege), str(RACINE)]),
+            },
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+        sortie = resultat.stdout + resultat.stderr
+        assert resultat.returncode == 0, sortie
+        assert "SMOKE OK" in sortie, sortie
+        # DATA_DIR n'existait pas : le lanceur l'a cree, migre et peuple.
+        assert (donnees / "candidatures.db").exists()
+        assert (donnees / "uploads").is_dir()
