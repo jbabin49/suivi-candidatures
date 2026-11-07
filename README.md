@@ -80,6 +80,93 @@ en thème sombre.
 
 Démarche de sécurité : voir [SECURITE.md](SECURITE.md).
 
+## Installation (version de bureau)
+
+Pour un usage individuel sur un seul poste, l'application existe aussi en
+**exécutable autonome** : une fenêtre native, pas de Docker, pas de navigateur,
+pas de ligne de commande. Les binaires sont attachés à chaque
+[release](../../releases).
+
+| Fichier | Pour | Architecture |
+| --- | --- | --- |
+| `SuiviCandidatures-windows.exe` | Windows 10/11 | `x86_64` |
+| `SuiviCandidatures-macos.zip` | **Mac Apple Silicon (M1 et suivants)** | `arm64` |
+
+**Sous Linux, il n'y a pas de binaire** : l'application s'y utilise par Docker
+(voir la section suivante) ou directement depuis les sources, voir
+[plus bas](#lancer-la-version-de-bureau-depuis-les-sources).
+
+Les données sont rangées dans le dossier standard de votre système
+(`%LOCALAPPDATA%\SuiviCandidatures` sous Windows,
+`~/Library/Application Support/SuiviCandidatures` sous macOS). C'est ce dossier
+qu'il faut sauvegarder. Au premier démarrage, l'application affiche un écran
+**Bienvenue** : un identifiant et un mot de passe suffisent à créer votre
+compte, le nom affiché est facultatif. Aucune configuration préalable, aucun
+`.env`.
+
+### Premier lancement : les binaires ne sont pas signés
+
+Ces exécutables ne sont **ni signés ni notarisés** — signer exige des
+certificats payants (99 $/an chez Apple, quelques centaines d'euros pour un
+certificat Authenticode) difficiles à justifier pour un projet personnel sous
+licence MIT. Les systèmes le signalent donc à la première ouverture, une seule
+fois par machine. Voici le parcours exact, par système.
+
+**macOS (Mac Apple Silicon — M1 et suivants uniquement)** — télécharger
+`SuiviCandidatures-macos.zip`, le décompresser, glisser `SuiviCandidatures.app`
+dans le dossier Applications, puis double-cliquer. macOS refuse l'ouverture.
+
+> Depuis **macOS Sequoia (15)**, le vieux contournement par *clic droit >
+> Ouvrir* ne fonctionne plus : Apple l'a retiré. Il faut passer par les
+> réglages.
+
+1. ouvrir **Réglages Système > Confidentialité et sécurité** ;
+2. descendre jusqu'à la section **Sécurité** : un message signale que
+   « SuiviCandidatures » a été bloqué ;
+3. cliquer sur **Ouvrir quand même**, puis confirmer (mot de passe ou Touch ID).
+
+L'application s'ouvre, et les lancements suivants se font normalement.
+
+> ⚠️ **Ce binaire ne fonctionne pas sur un Mac Intel.** Il est construit sur un
+> runner Apple Silicon et n'est donc compilé que pour `arm64` ; aucun build
+> *universal2* n'est publié. Sur un Mac à processeur Intel, utiliser la
+> [version de bureau depuis les sources](#lancer-la-version-de-bureau-depuis-les-sources).
+
+**Windows 10/11** — télécharger `SuiviCandidatures-windows.exe` et le lancer.
+SmartScreen affiche « Windows a protégé votre ordinateur ».
+
+1. cliquer sur **Informations complémentaires** (le lien discret sous le
+   message, pas le bouton « Ne pas exécuter ») ;
+2. cliquer sur **Exécuter quand même**.
+
+Selon la configuration du navigateur, le téléchargement lui-même peut aussi
+demander une confirmation (*Conserver quand même*).
+
+### Lancer la version de bureau depuis les sources
+
+C'est la voie à suivre **sous Linux**, sur un **Mac Intel**, ou pour
+développer :
+
+```bash
+pip install -r requirements-desktop.txt
+python desktop.py
+```
+
+Sous Linux, `pywebview` a besoin de WebKitGTK, qui n'est pas inclus :
+
+```bash
+# Debian / Ubuntu 24.04 et suivants (série 4.1 ; la 4.0 a été retirée)
+sudo apt-get install -y gir1.2-gtk-3.0 gir1.2-webkit2-4.1 python3-gi python3-gi-cairo
+# Arch
+sudo pacman -S --needed gtk3 webkit2gtk-4.1 python-gobject
+# Fedora
+sudo dnf install gtk3 webkit2gtk4.1 python3-gobject
+```
+
+Les données vont alors dans `~/.local/share/SuiviCandidatures`.
+
+La construction des exécutables est documentée dans [BUILD.md](BUILD.md).
+
 ## Démarrage rapide (Docker, auth locale)
 
 ```bash
@@ -342,6 +429,8 @@ app/
   templates/         Gabarits Jinja2
   static/            CSS et JavaScript
 creer_utilisateur.py Création d'un compte en ligne de commande
+desktop.py           Lanceur de la version de bureau (fenêtre pywebview)
+suivi-candidatures.spec  Spécification PyInstaller (voir BUILD.md)
 donnees_demo/        Jeu de données fictif (démo, captures, contribution)
 data/                Données persistantes (volume) - non versionné
 tests/               Tests
