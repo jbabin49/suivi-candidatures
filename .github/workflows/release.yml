@@ -48,6 +48,13 @@ jobs:
   build:
     name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # Dossier de donnees du smoke-test, partage par l'etape qui lance le
+    # binaire et par celle qui en relit le journal : une seule definition,
+    # pour qu'elles ne puissent pas diverger. runner.temp est deja ecrit
+    # dans la forme native de chaque systeme, et il est hors de dist/,
+    # donc sans effet sur l'artefact televerse ensuite.
+    env:
+      DOSSIER_SMOKE: ${{ runner.temp }}/smoke-data
     strategy:
       # Un echec sur un systeme ne doit pas annuler l'autre : il reste
       # utile de savoir lequel passe.
@@ -85,28 +92,23 @@ jobs:
         run: pyinstaller --noconfirm --clean suivi-candidatures.spec
 
       # Le build reussit tant que PyInstaller trouve ses imports ; il ne
-      # dit rien de ce qui se passe au lancement. Ces deux etapes font
-      # tourner le binaire GELE (et non python desktop.py) en mode
-      # smoke-test : demarrage d'uvicorn, /healthz, et migration Alembic
-      # appliquee depuis migrations/ extrait dans _MEIPASS. C'est le seul
-      # endroit ou la resolution des ressources empaquetees est
-      # reellement eprouvee. La fenetre pywebview reste hors du test :
-      # aucun runner n'a d'affichage, SMOKE_TEST=1 sort avant de la
-      # creer.
-      #
-      # DATA_DIR vers un dossier temporaire du runner : jamais le dossier
-      # utilisateur de l'OS, et jamais dans dist/, pour ne pas polluer
-      # l'artefact televerse juste apres.
+      # dit rien de ce qui se passe au lancement. Ces etapes font tourner
+      # le binaire GELE (et non python desktop.py) en mode smoke-test :
+      # demarrage d'uvicorn, /healthz, et migration Alembic appliquee
+      # depuis migrations/ extrait dans _MEIPASS. C'est le seul endroit
+      # ou la resolution des ressources empaquetees est reellement
+      # eprouvee. La fenetre pywebview reste hors du test : aucun runner
+      # n'a d'affichage, SMOKE_TEST=1 sort avant de la creer.
       #
       # Une etape par systeme : les binaires produits n'ont ni le meme
       # chemin ni la meme facon d'etre attendus.
       - name: Smoke-test du bundle gele (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          SMOKE_TEST: "1"
+          DATA_DIR: ${{ env.DOSSIER_SMOKE }}
         run: |
-          $donnees = Join-Path $env:RUNNER_TEMP "smoke-data"
-          $env:SMOKE_TEST = "1"
-          $env:DATA_DIR = $donnees
           # L'executable est construit en mode fenetre (console a faux),
           # donc du sous-systeme GUI : lance tel quel, cmd/pwsh rend la
           # main aussitot sans attendre sa fin et $LASTEXITCODE ne veut
@@ -114,23 +116,36 @@ jobs:
           # seul moyen d'attendre vraiment et de lire son code de sortie.
           $process = Start-Process -FilePath "dist\SuiviCandidatures.exe" -PassThru
           # Delai de garde largement au-dessus des 30 s d'attente de
-          # /healthz : si le binaire se bloquait malgre tout, le job
-          # echoue ici au lieu de consommer son quota entier.
+          # /healthz. WaitForExit(ms) rend faux si le process est
+          # toujours la au bout du compte : il faut alors le tuer, sinon
+          # il survit a l'etape et retient le runner, et echouer sur ce
+          # seul fait. Surtout, ne PAS lire ExitCode dans ce cas : il est
+          # indefini pour un process encore vivant, et le tester
+          # laisserait passer un binaire bloque.
           if (-not $process.WaitForExit(180000)) {
+            # Ne tue que ce PID, pas sa descendance : un onefile
+            # PyInstaller est un chargeur qui lance l'application dans un
+            # process fils, lequel peut donc survivre. Sans consequence
+            # ici, l'etape etant deja en echec et le runner detruit avec
+            # le job ; a remplacer par « taskkill /T /F » si un fils
+            # tenait un jour un verrou genant la suite.
             Stop-Process -Id $process.Id -Force
-            throw "Le binaire ne s'est pas termine dans le delai imparti."
+            Write-Host "smoke-test: delai depasse, process tue (PID $($process.Id))."
+            exit 1
           }
-          # Sans console, le binaire n'a pas de stderr : ses messages ne
-          # sont lisibles que dans ce journal.
-          $journal = Join-Path $donnees "smoke-test.log"
-          if (Test-Path $journal) { Get-Content $journal }
+          # Ici seulement le process est termine, donc ExitCode a un sens.
           if ($process.ExitCode -ne 0) {
-            throw "Smoke-test en echec, code $($process.ExitCode)."
+            Write-Host "smoke-test: echec, le binaire a rendu le code $($process.ExitCode)."
+            exit 1
           }
+          Write-Host "smoke-test: le binaire gele est sorti avec le code 0."
 
       - name: Smoke-test du bundle gele (macOS)
         if: runner.os == 'macOS'
         shell: bash
+        env:
+          SMOKE_TEST: "1"
+          DATA_DIR: ${{ env.DOSSIER_SMOKE }}
         run: |
           set -euo pipefail
           # Le .app, pas l'executable nu egalement produit dans dist/ :
@@ -140,19 +155,49 @@ jobs:
           # sortie.
           binaire="dist/SuiviCandidatures.app/Contents/MacOS/SuiviCandidatures"
           if [ ! -x "$binaire" ]; then
-            echo "Binaire introuvable dans le bundle : $binaire" >&2
+            echo "smoke-test: binaire introuvable dans le bundle ($binaire)." >&2
             ls -R dist >&2
             exit 1
           fi
-          donnees="$RUNNER_TEMP/smoke-data"
           code=0
-          SMOKE_TEST=1 DATA_DIR="$donnees" "$binaire" || code=$?
-          if [ -f "$donnees/smoke-test.log" ]; then
-            cat "$donnees/smoke-test.log"
-          fi
+          "$binaire" || code=$?
           if [ "$code" -ne 0 ]; then
-            echo "Smoke-test en echec, code $code." >&2
+            echo "smoke-test: echec, le binaire a rendu le code $code." >&2
             exit 1
+          fi
+          echo "smoke-test: le binaire gele est sorti avec le code 0."
+
+      # Le journal est relu dans ses propres etapes, et sur les DEUX
+      # systemes : c'est la seule trace exploitable d'un echec. Un binaire
+      # sans console n'a pas de stderr sous Windows, et un process tue au
+      # delai de garde n'a rien eu le temps d'ecrire ailleurs.
+      #
+      # always() et non failure() : l'etape doit tourner quand le
+      # smoke-test echoue, ce que failure() seul donnerait, mais le
+      # journal vaut aussi en cas de succes (il nomme la revision Alembic
+      # effectivement appliquee par le binaire). Les deux cas sont donc
+      # couverts. En cas d'echec, les etapes suivantes, elles, restent
+      # bien sautees : aucun artefact n'est televerse.
+      - name: Journal du smoke-test (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $journal = Join-Path $env:DOSSIER_SMOKE "smoke-test.log"
+          if (Test-Path $journal) {
+            Get-Content $journal
+          } else {
+            Write-Host "Aucun journal dans $env:DOSSIER_SMOKE : le binaire n'a meme pas atteint son mode smoke-test."
+          }
+
+      - name: Journal du smoke-test (macOS)
+        if: always() && runner.os == 'macOS'
+        shell: bash
+        run: |
+          journal="$DOSSIER_SMOKE/smoke-test.log"
+          if [ -f "$journal" ]; then
+            cat "$journal"
+          else
+            echo "Aucun journal dans $DOSSIER_SMOKE : le binaire n'a meme pas atteint son mode smoke-test."
           fi
 
       # ditto plutot que zip : il preserve les liens symboliques et les
