@@ -50,9 +50,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Dossier de donnees du smoke-test, partage par l'etape qui lance le
     # binaire et par celle qui en relit le journal : une seule definition,
-    # pour qu'elles ne puissent pas diverger. runner.temp est deja ecrit
-    # dans la forme native de chaque systeme, et il est hors de dist/,
-    # donc sans effet sur l'artefact televerse ensuite.
+    # pour qu'elles ne puissent pas diverger.
+    #
+    # github.workspace et non runner.temp : le contexte runner n'existe
+    # pas dans un env de job, seuls github, vars, secrets et inputs y sont
+    # evalues. Il est ecrit dans la forme native de chaque systeme (donc
+    # avec des antislashs sous Windows, ce qu'acceptent aussi bien
+    # Join-Path que pathlib), et reste hors de dist/ : l'artefact
+    # televerse ensuite ne designe que dist/, le dossier du smoke-test n'y
+    # entre pas.
     env:
       DOSSIER_SMOKE: ${{ github.workspace }}/smoke-data
     strategy:
