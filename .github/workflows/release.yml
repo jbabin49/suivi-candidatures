@@ -56,7 +56,7 @@ jobs:
     # dans la forme native de chaque systeme, et il est hors de dist/,
     # donc sans effet sur l'artefact televerse ensuite.
     env:
-      DOSSIER_SMOKE: ${{ runner.temp }}/smoke-data
+      DOSSIER_SMOKE: ${{ github.workspace }}/smoke-data
     strategy:
       # Un echec sur un systeme ne doit pas annuler l'autre : il reste
       # utile de savoir lequel passe.
