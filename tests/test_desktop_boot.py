@@ -24,11 +24,16 @@ ne peut se verifier que sur le binaire, donc en CI.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+import pytest
+
+import desktop
 
 RACINE = Path(__file__).resolve().parent.parent
 
@@ -141,3 +146,104 @@ def test_mode_smoke_sort_zero_et_confirme_la_migration():
         # DATA_DIR n'existait pas : le lanceur l'a cree, migre et peuple.
         assert (donnees / "candidatures.db").exists()
         assert (donnees / "uploads").is_dir()
+
+
+@contextlib.contextmanager
+def flux_standard_absents():
+    """
+    Met sys.stdout et sys.stderr a None le temps du bloc, comme le fait
+    PyInstaller dans un binaire Windows construit en mode fenetre, et
+    restaure ensuite exactement les objets trouves en entrant.
+
+    Un contextmanager utilise DANS le corps du test, et non une fixture :
+    pytest reinstalle ses propres objets de capture au debut de la phase
+    d'appel, donc apres la mise en place des fixtures. Une fixture qui
+    poserait None serait ecrasee avant que le test ne commence, et le
+    test passerait pour de mauvaises raisons.
+    """
+    vrai_stdout, vrai_stderr = sys.stdout, sys.stderr
+    sys.stdout = None
+    sys.stderr = None
+    try:
+        yield
+    finally:
+        sys.stdout, sys.stderr = vrai_stdout, vrai_stderr
+
+
+class TestFluxStandardAbsents:
+    """
+    Flux standards a None, comme dans le binaire Windows construit en mode
+    fenetre : PyInstaller y met sys.stdout et sys.stderr a None.
+
+    C'est la regression a tenir : uvicorn configure sa journalisation des
+    uvicorn.Config(), et son formateur par defaut appelle
+    sys.stdout.isatty() quand use_colors vaut None. Sur des flux absents,
+    cela levait AttributeError, remonte en « ValueError: Unable to
+    configure formatter 'default' », et le binaire ne demarrait pas, au
+    double-clic comme en smoke-test.
+    """
+
+    def test_les_flux_absents_sont_remplaces(self, tmp_path):
+        """
+        Apres l'appel, les deux flux existent, ne sont pas un terminal, et
+        acceptent reellement write() et flush().
+        """
+        with flux_standard_absents():
+            desktop.securiser_flux_standard(tmp_path)
+
+            for flux in (sys.stdout, sys.stderr):
+                assert flux is not None
+                assert flux.isatty() is False
+                flux.write("essai\n")
+                flux.flush()
+
+        # Redirection vers le journal du DATA_DIR, et non vers devnull :
+        # les avertissements d'uvicorn doivent rester consultables.
+        journal = tmp_path / desktop.JOURNAL_SMOKE
+        assert journal.exists()
+        assert "essai" in journal.read_text(encoding="utf-8")
+
+    def test_repli_sur_devnull_sans_dossier_de_donnees(self):
+        """
+        Sans DATA_DIR resolu, le repli reste un flux inscriptible : le
+        correctif ne doit jamais empecher le demarrage qu'il rend possible.
+        """
+        with flux_standard_absents():
+            desktop.securiser_flux_standard(None)
+
+            assert sys.stdout is not None and sys.stderr is not None
+            assert sys.stdout.isatty() is False
+            sys.stdout.write("perdu, mais sans erreur\n")
+            sys.stdout.flush()
+
+    def test_construire_serveur_leve_sans_le_correctif(self):
+        """
+        Le defaut lui-meme, fige : sans flux valides, uvicorn.Config
+        echoue a configurer son formateur. Si uvicorn cessait un jour
+        d'interroger sys.stdout, ce test tomberait et signalerait que le
+        correctif n'a plus d'objet.
+        """
+        with flux_standard_absents():
+            with pytest.raises(ValueError, match="formatter"):
+                desktop.construire_serveur(None, "127.0.0.1", 8000)
+
+    def test_construire_serveur_passe_apres_le_correctif(self, tmp_path):
+        """Et le correctif le repare : plus aucune exception."""
+        with flux_standard_absents():
+            desktop.securiser_flux_standard(tmp_path)
+
+            serveur = desktop.construire_serveur(None, "127.0.0.1", 8000)
+            assert isinstance(serveur, desktop.ServeurSansSignaux)
+
+    def test_sans_effet_quand_les_flux_existent(self, tmp_path):
+        """
+        Execution depuis les sources, macOS, Linux : les flux existent, la
+        fonction ne doit rien remplacer ni rien ecrire.
+        """
+        avant_stdout, avant_stderr = sys.stdout, sys.stderr
+
+        desktop.securiser_flux_standard(tmp_path)
+
+        assert sys.stdout is avant_stdout
+        assert sys.stderr is avant_stderr
+        assert not (tmp_path / desktop.JOURNAL_SMOKE).exists()
