@@ -20,6 +20,17 @@ DATA_DIR, demarrage effectif du serveur.
 La fenetre reste volontairement hors du test : elle demande un affichage
 et un moteur de rendu systeme, absents d'un runner de CI. C'est pourquoi
 l'import de webview n'a lieu qu'APRES le point de sortie du mode smoke.
+
+Flux standards absents
+----------------------
+Construit en mode fenetre (console=False), le binaire n'a sous Windows
+ni sys.stdout ni sys.stderr : PyInstaller les met a None. uvicorn, lui,
+configure sa journalisation des uvicorn.Config() et son formateur par
+defaut appelle sys.stdout.isatty() pour decider de la couleur, ce qui
+echoue alors en ValueError: Unable to configure formatter 'default'.
+Le binaire ne demarrait donc pas, au double-clic comme en smoke-test.
+securiser_flux_standard() substitue un vrai flux inscriptible aux flux
+absents, avant toute construction de serveur.
 """
 
 from __future__ import annotations
@@ -79,11 +90,66 @@ def journaliser(message: str, dossier_donnees: Path | None = None) -> None:
         print(message, file=sys.stderr, flush=True)
     if dossier_donnees is None:
         return
+    # Quand securiser_flux_standard() a redirige stderr vers le journal
+    # lui-meme, le print ci-dessus y a deja depose la ligne : l'ecrire une
+    # seconde fois la ferait apparaitre en double dans les logs de CI.
+    if getattr(sys.stderr, "name", None) == str(dossier_donnees / JOURNAL_SMOKE):
+        return
     try:
         with (dossier_donnees / JOURNAL_SMOKE).open("a", encoding="utf-8") as fichier:
             fichier.write(message + "\n")
     except OSError:
         pass
+
+
+def _ouvrir_flux_de_secours(dossier_donnees: Path | None):
+    """
+    Ouvre le flux texte qui remplacera un flux standard absent.
+
+    Le journal du DATA_DIR est prefere a os.devnull : les avertissements
+    d'uvicorn y sont conserves au lieu d'etre perdus, et c'est le fichier
+    que la CI affiche deja. Repli sur devnull si le dossier n'est pas
+    encore resolu ou n'est pas inscriptible : le correctif ne doit jamais
+    empecher le demarrage qu'il sert a rendre possible.
+
+    Ligne a ligne (buffering=1) : un process tue au delai de garde ne doit
+    pas emporter dans un tampon ce qu'il avait a dire. Objet fichier reel,
+    donc isatty() rend faux et le formateur d'uvicorn renonce a la
+    couleur : pas de sequences ANSI dans le journal.
+    """
+    if dossier_donnees is not None:
+        try:
+            chemin = dossier_donnees / JOURNAL_SMOKE
+            return chemin.open("a", encoding="utf-8", buffering=1)
+        except OSError:
+            pass
+    return open(os.devnull, "a", encoding="utf-8")
+
+
+def securiser_flux_standard(dossier_donnees: Path | None = None) -> None:
+    """
+    Garantit que sys.stdout et sys.stderr sont des flux inscriptibles.
+
+    Ne remplace QUE ce qui vaut None : sans effet en execution depuis les
+    sources, et sans effet sur macOS et Linux, ou les flux existent meme
+    dans un bundle sans console. Le cas vise est le binaire Windows en
+    mode fenetre, seul endroit ou PyInstaller met les deux a None.
+
+    A appeler avant toute construction de serveur uvicorn : c'est
+    uvicorn.Config qui configure la journalisation, et son formateur par
+    defaut interroge sys.stdout.isatty().
+
+    L'affectation a sys.stdout / sys.stderr suffit a maintenir le flux en
+    vie pour la duree du process ; il n'est volontairement jamais ferme.
+    """
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+
+    flux = _ouvrir_flux_de_secours(dossier_donnees)
+    if sys.stdout is None:
+        sys.stdout = flux
+    if sys.stderr is None:
+        sys.stderr = flux
 
 
 def port_libre() -> int:
@@ -222,6 +288,9 @@ def verifier_smoke(dossier_donnees: Path, base_url: str, demarre: bool) -> int:
 
 def main() -> int:
     dossier_donnees = configurer_environnement()
+    # Avant tout import de l'application et toute construction de
+    # serveur : uvicorn.Config echouerait sur des flux standards a None.
+    securiser_flux_standard(dossier_donnees)
 
     from app.main import app  # apres avoir pose DATA_DIR
 
